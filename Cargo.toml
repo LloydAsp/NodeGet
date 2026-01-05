@@ -17,6 +17,8 @@ minimal = { inherits = "release", opt-level = "z", lto = true, codegen-units = 1
 [dependencies]
 tokio = { version = "1.48.0", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 parking_lot = "0.12.5"
+auto-launch = "0.5"
+dotenvy = "0.15.7"
 migration = { path = "./migration" }
 sea-orm = { version = "2.0.0-rc", features = [
     "sqlx-sqlite",

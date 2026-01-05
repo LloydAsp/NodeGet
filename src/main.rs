@@ -23,10 +23,12 @@ use uuid::Uuid;
 
 mod entities;
 mod monitoring;
+mod launch;
 mod utils;
 
 #[tokio::main]
 async fn main() {
+    app_start().unwrap();
     let db_url = "sqlite://test.db?mode=rwc";
     let db = Database::connect(db_url).await.unwrap();
 
@@ -65,4 +67,8 @@ async fn main() {
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
+}
+
+fn app_start() -> Result<(), Box<dyn std::error::Error>> {
+    launch::app_launch()
 }
