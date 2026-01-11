@@ -6,9 +6,8 @@ edition = "2024"
 [dependencies]
 nodeget-lib = { path = "../nodeget-lib", features = ["for-agent"] }
 
-tokio = { version = "1.48.0", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.48.0", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync", "time", "net"] }
 parking_lot = "0.12.5"
-uuid = { version = "1.19.0", default-features = false, features = ["std", "fast-rng", "v4"] }
 miniserde = "0.1.45"
 surge-ping = "0.8.4"
 rand = { version = "0.10.0-rc.6", default-features = false, features = ["small_rng", "std", "thread_rng"] }

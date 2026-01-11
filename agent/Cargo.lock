@@ -877,7 +877,6 @@ dependencies = [
  "surge-ping",
  "sysinfo",
  "tokio",
- "uuid",
  "windows-sys 0.61.2",
 ]
 
