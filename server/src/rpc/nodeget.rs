@@ -1,0 +1,25 @@
+use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
+use nodeget_lib::utils::version::NodeGetVersion;
+
+#[rpc(server, namespace = "nodeget-server")]
+pub trait Rpc {
+    #[method(name = "hello")]
+    async fn hello(&self) -> String;
+
+    #[method(name = "version")]
+    async fn version(&self) -> serde_json::Value;
+}
+
+pub struct NodegetServerRpcImpl;
+
+#[async_trait]
+impl RpcServer for NodegetServerRpcImpl {
+    async fn hello(&self) -> String {
+        "NodeGet Server Is Running!".to_string()
+    }
+
+    async fn version(&self) -> serde_json::Value {
+        serde_json::to_value(NodeGetVersion::get()).unwrap()
+    }
+}

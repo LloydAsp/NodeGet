@@ -10,7 +10,36 @@
     dead_code
 )]
 
+use crate::rpc::agent::RpcServer as AgentRpcServer;
+use crate::rpc::nodeget::RpcServer as NodegetRpcServer;
+use jsonrpsee::server::ServerBuilder;
+use sea_orm::{Database, DatabaseConnection};
+use std::net::SocketAddr;
+use tokio::sync::OnceCell;
+
+mod entity;
+mod rpc;
+
+static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
+
 #[tokio::main]
 async fn main() {
+    let _db = DB
+        .get_or_init(|| async {
+            Database::connect("sqlite://test.db?mode=rwc")
+                .await
+                .unwrap()
+        })
+        .await;
 
+    let server = ServerBuilder::default()
+        .build("127.0.0.1:3000".parse::<SocketAddr>().unwrap())
+        .await
+        .unwrap();
+
+    let mut module = rpc::nodeget::NodegetServerRpcImpl.into_rpc();
+    module.merge(rpc::agent::AgentRpcImpl.into_rpc()).unwrap();
+
+    let handle = server.start(module);
+    handle.stopped().await;
 }

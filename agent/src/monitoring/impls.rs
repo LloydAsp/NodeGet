@@ -2,11 +2,13 @@ use crate::monitoring::gpu::{DynamicDataFromGpu, StaticDataFromGpu};
 use crate::monitoring::network_connections::calc_connections;
 use crate::monitoring::system_impls::{DynamicDataFromSystem, StaticDataFromSystem};
 use crate::monitoring::{refresh_global_disk, refresh_global_network};
+use crate::UUID;
 use nodeget_lib::monitoring::data_structure::DiskKind::{Hdd, Ssd, Unknown};
 use nodeget_lib::monitoring::data_structure::{
     DynamicMonitoringData, DynamicNetworkData, DynamicPerDiskData, DynamicPerNetworkInterfaceData,
     StaticMonitoringData,
 };
+use nodeget_lib::utils::get_local_timestamp_ms;
 use sysinfo::DiskKind;
 
 pub trait Monitor {
@@ -20,6 +22,9 @@ impl Monitor for StaticMonitoringData {
         let (system_data, gpu_data) =
             tokio::join!(StaticDataFromSystem::get(), StaticDataFromGpu::get());
         StaticMonitoringData {
+            uuid: UUID.get().unwrap_or(&"00000000-0000-0000-0000-000000000000".to_string()).clone(),
+            time: get_local_timestamp_ms(),
+
             cpu: system_data.0.clone(),
             system: system_data.1.clone(),
             gpu: gpu_data.0.clone(),
@@ -37,6 +42,9 @@ impl Monitor for DynamicMonitoringData {
         let gpu = DynamicDataFromGpu::refresh_and_get().await;
 
         DynamicMonitoringData {
+            uuid: UUID.get().unwrap_or(&"00000000-0000-0000-0000-000000000000".to_string()).clone(),
+            time: get_local_timestamp_ms(),
+
             cpu: system_data.0.clone(),
             ram: system_data.1.clone(),
             load: system_data.2.clone(),

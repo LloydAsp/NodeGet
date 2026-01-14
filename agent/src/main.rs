@@ -10,16 +10,25 @@
     dead_code
 )]
 
+use crate::monitoring::impls::Monitor;
 use crate::tasks::ping::http::httping_target;
 use crate::tasks::ping::icmp::ping_v4_target;
 use crate::tasks::ping::tcp::tcping_target;
+use nodeget_lib::monitoring::data_structure::StaticMonitoringData;
 use std::net::SocketAddr;
+use std::sync::OnceLock;
 
 mod monitoring;
 mod tasks;
 
+static UUID: OnceLock<String> = OnceLock::new();
+
 #[tokio::main]
 async fn main() {
+    UUID.set(uuid::Uuid::new_v4().to_string()).unwrap();
+
+    println!("{}", miniserde::json::to_string(&StaticMonitoringData::refresh_and_get().await));
+
     println!(
         "{}",
         ping_v4_target("1.1.1.1".parse().unwrap())
