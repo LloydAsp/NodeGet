@@ -1,3 +1,6 @@
+pub mod version;
+pub mod error_message;
+
 // 毫秒时间戳，超过 u64 范围时返回 0
 pub fn get_local_timestamp_ms() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};

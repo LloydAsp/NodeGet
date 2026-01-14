@@ -29,6 +29,9 @@ surge-ping = "0.8.4"
 # Random Number Generation
 rand = { version = "0.10.0-rc.6", default-features = false, features = ["small_rng", "std", "thread_rng"] }
 
+# UUID Support
+uuid = { version = "1.19.0", default-features = false, features = ["fast-rng", "v4"] }
+
 # Dependency for system information
 ## Main cross-platform library
 sysinfo = { version = "0.37.2", default-features = false, features = ["multithread", "windows", "disk", "network", "system"] }
