@@ -14,7 +14,7 @@ use crate::monitoring::impls::Monitor;
 use crate::tasks::ping::http::httping_target;
 use crate::tasks::ping::icmp::ping_v4_target;
 use crate::tasks::ping::tcp::tcping_target;
-use nodeget_lib::monitoring::data_structure::StaticMonitoringData;
+use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use std::net::SocketAddr;
 use std::sync::OnceLock;
 
@@ -28,6 +28,10 @@ async fn main() {
     UUID.set(uuid::Uuid::new_v4().to_string()).unwrap();
 
     println!("{}", miniserde::json::to_string(&StaticMonitoringData::refresh_and_get().await));
+
+    println!();
+
+    println!("{}", miniserde::json::to_string(&DynamicMonitoringData::refresh_and_get().await));
 
     println!(
         "{}",

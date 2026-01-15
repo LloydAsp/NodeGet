@@ -16,6 +16,7 @@ use jsonrpsee::server::ServerBuilder;
 use sea_orm::{Database, DatabaseConnection};
 use std::net::SocketAddr;
 use tokio::sync::OnceCell;
+use migration::{Migrator, MigratorTrait};
 
 mod entity;
 mod rpc;
@@ -26,9 +27,12 @@ static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
 async fn main() {
     let _db = DB
         .get_or_init(|| async {
-            Database::connect("sqlite://test.db?mode=rwc")
-                .await
-                .unwrap()
+            let db_url = "sqlite://test.db?mode=rwc";
+            let db = Database::connect(db_url).await.unwrap();
+            println!("Database connected.");
+            Migrator::up(&db, None).await.unwrap();
+            println!("Migrations applied successfully.");
+            db
         })
         .await;
 

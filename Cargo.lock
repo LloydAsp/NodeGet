@@ -2272,6 +2272,7 @@ name = "nodeget-server"
 version = "0.0.1"
 dependencies = [
  "jsonrpsee",
+ "migration",
  "nodeget-lib",
  "parking_lot",
  "sea-orm",
