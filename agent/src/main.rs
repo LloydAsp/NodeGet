@@ -28,7 +28,7 @@ static AGENT_CONFIG: OnceLock<AgentConfig> = OnceLock::new();
 async fn main() {
     println!("Starting nodeget-agent");
 
-    let config = AgentConfig::get_and_parse_config("./config.toml.example")
+    let config = AgentConfig::get_and_parse_config("./config.toml")
         .await
         .unwrap();
 

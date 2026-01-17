@@ -33,7 +33,7 @@ static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
 async fn main() {
     println!("Starting nodeget-server");
 
-    let config = ServerConfig::get_and_parse_config("./config.toml.example")
+    let config = ServerConfig::get_and_parse_config("./config.toml")
         .await
         .unwrap();
 
