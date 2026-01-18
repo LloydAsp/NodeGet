@@ -21,11 +21,13 @@ pub struct Server {
     pub token: String,
     pub ws_url: String,
 
+    pub allow_task: Option<bool>,
+
     pub allow_icmp_ping: Option<bool>,
     pub allow_tcp_ping: Option<bool>,
     pub allow_http_ping: Option<bool>,
 
-    pub allow_ssh: Option<bool>,
+    pub allow_web_shell: Option<bool>,
     pub allow_edit_config: Option<bool>, // Dangerous
 }
 

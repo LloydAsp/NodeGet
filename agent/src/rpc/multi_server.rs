@@ -8,8 +8,10 @@ use nodeget_lib::config::agent::Server;
 use tokio::net::TcpStream;
 use tokio::sync::{OnceCell, RwLock, broadcast, mpsc};
 use tokio::time::{sleep, timeout};
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use crate::AGENT_CONFIG;
+use crate::rpc::{wrap_json_into_rpc_with_id_1};
 
 // 句柄
 pub struct ServerHandle {
@@ -69,6 +71,20 @@ async fn connection_manager(
         info!("[{name}] Connected successfully");
 
         let (mut ws_write, mut ws_read) = ws_stream.split();
+
+        // Task Register
+        {
+            if server.allow_task.unwrap_or(false) {
+                let rpc = wrap_json_into_rpc_with_id_1("task_register_task", vec![serde_json::Value::String(AGENT_CONFIG.get().unwrap().agent_uuid.to_string())]);
+
+                if let Err(e) = ws_write.send(Message::Text(Utf8Bytes::from(rpc))).await {
+                    error!("[{name}] Write error (register task listener): {e}, triggering reconnect...");
+                    continue;
+                } else {
+                    debug!("[{name}] Register task listener successfully");
+                }
+            }
+        }
 
         loop {
             tokio::select! {
