@@ -25,6 +25,10 @@ pub async fn query(_token: String, data: Value) -> Value {
 
         for cond in query_req.condition {
             match cond {
+                TaskQueryCondition::TaskId(id) => {
+                    query = query.filter(task::Column::Id.eq(id as i64));
+                }
+
                 TaskQueryCondition::Uuid(uuid) => {
                     query = query.filter(task::Column::Uuid.eq(uuid));
                 }
