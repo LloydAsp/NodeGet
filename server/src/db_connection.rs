@@ -15,7 +15,7 @@ pub async fn init_db_connection() {
                 .database
                 .sqlx_log_level
                 .clone()
-                .unwrap_or("info".to_string()),
+                .unwrap_or_else(|| "info".to_string()),
         ) else {
             error!(
                 "Configuration error: Invalid sqlx_log_level '{}'",
@@ -23,7 +23,7 @@ pub async fn init_db_connection() {
                     .database
                     .sqlx_log_level
                     .clone()
-                    .unwrap_or("info".to_string())
+                    .unwrap_or_else(|| "info".to_string())
             );
             process::exit(1);
         };
@@ -32,16 +32,19 @@ pub async fn init_db_connection() {
         opt.sqlx_logging_level(log_level);
 
         opt.connect_timeout(Duration::from_millis(
-            config.database.connect_timeout_ms.unwrap_or(10000),
+            config.database.connect_timeout_ms.unwrap_or(3000),
         ));
         opt.acquire_timeout(Duration::from_millis(
-            config.database.acquire_timeout_ms.unwrap_or(10000),
+            config.database.acquire_timeout_ms.unwrap_or(3000),
         ));
         opt.idle_timeout(Duration::from_millis(
-            config.database.idle_timeout_ms.unwrap_or(10000),
+            config.database.idle_timeout_ms.unwrap_or(3000),
+        ));
+        opt.max_lifetime(Duration::from_millis(
+            config.database.max_lifetime_ms.unwrap_or(30000),
         ));
 
-        opt.max_connections(config.database.max_connections.unwrap_or(100));
+        opt.max_connections(config.database.max_connections.unwrap_or(10));
 
         let db = match Database::connect(opt).await {
             Ok(conn) => conn,

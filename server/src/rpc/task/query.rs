@@ -1,30 +1,43 @@
+use jsonrpsee::core::RpcResult;
 use crate::entity::task;
 use crate::rpc::RpcHelper;
 use crate::rpc::task::TaskRpcImpl;
+use futures::StreamExt;
 use log::error;
 use nodeget_lib::task::query::{TaskDataQuery, TaskQueryCondition};
-use nodeget_lib::utils::error_message::generate_error_message;
+use nodeget_lib::utils::error_message::error_to_raw;
 use sea_orm::sea_query::{Alias, BinOper, Expr};
 use sea_orm::{
-    ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter,
-    QueryOrder, QuerySelect,
+    ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter, QueryOrder, QuerySelect,
 };
-use serde_json::{Map, Value, from_value};
+use serde_json::value::RawValue;
+use serde_json::{Map, Value};
+use nodeget_lib::utils::rename_key;
 
-pub async fn query(_token: String, data: Value) -> Value {
+pub async fn query(_token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = TaskRpcImpl::get_db()?;
 
-        let query_req: TaskDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse task query data: {e}");
-            (101, format!("Unable to parse task query data: {e}"))
-        })?;
+        let mut query = task::Entity::find().select_only();
 
-        let mut query = task::Entity::find();
+        query = query
+            .column(task::Column::Id)
+            .column(task::Column::Uuid)
+            .column(task::Column::Timestamp)
+            .column(task::Column::Success)
+            .column(task::Column::ErrorMessage)
+            .column(task::Column::TaskEventType)
+            .column(task::Column::TaskEventResult);
+
         let mut is_last = false;
+        let mut limit_count: Option<u64> = None;
 
-        for cond in query_req.condition {
+        for cond in task_data_query.condition {
             match cond {
+                TaskQueryCondition::TaskId(id) => {
+                    query = query.filter(task::Column::Id.eq(id.cast_signed()));
+                }
+
                 TaskQueryCondition::Uuid(uuid) => {
                     query = query.filter(task::Column::Uuid.eq(uuid));
                 }
@@ -67,10 +80,21 @@ pub async fn query(_token: String, data: Value) -> Value {
                         );
                     }
                 }
+
+                TaskQueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
+
                 TaskQueryCondition::Last => {
                     is_last = true;
                 }
             }
+        }
+
+        if let Some(l) = limit_count {
+            query = query.order_by(task::Column::Id, Order::Desc).limit(l);
+        } else {
+            query = query.order_by(task::Column::Id, Order::Asc);
         }
 
         if is_last {
@@ -79,53 +103,62 @@ pub async fn query(_token: String, data: Value) -> Value {
             query = query.order_by(task::Column::Id, Order::Asc);
         }
 
-        let models = query.all(db).await.map_err(|e| {
+        let mut stream = query.into_json().stream(db).await.map_err(|e| {
             error!("Database query error: {e}");
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
-            .into_iter()
-            .map(|model| {
-                let mut map = Map::new();
+        let capacity = limit_count.unwrap_or(100) as usize * 500;
+        let mut output_buffer: Vec<u8> = Vec::with_capacity(capacity);
 
-                map.insert("task_id".to_string(), Value::Number(model.id.into()));
-                map.insert("uuid".to_string(), Value::String(model.uuid.to_string()));
-                map.insert("token".to_string(), Value::String(model.token));
+        output_buffer.push(b'[');
+        let mut first = true;
 
-                if let Some(ts) = model.timestamp {
-                    map.insert("timestamp".to_string(), Value::Number(ts.into()));
-                } else {
-                    map.insert("timestamp".to_string(), Value::Null);
+        while let Some(item_res) = stream.next().await {
+            match item_res {
+                Ok(mut v) => {
+                    // 数据库是 id, struct 是 task_id
+                    if let Some(obj) = v.as_object_mut() {
+                        rename_key(obj, "id", "task_id");
+                    }
+
+                    if !first {
+                        output_buffer.push(b',');
+                    } else {
+                        first = false;
+                    }
+
+                    if let Err(e) = serde_json::to_writer(&mut output_buffer, &v) {
+                        error!("Serialization failed: {e}");
+                        return Err((101, format!("Serialization failed: {e}")));
+                    }
+                },
+                Err(e) => {
+                    error!("Stream read error: {e}");
+                    return Err((103, format!("Stream read error: {e}")));
                 }
+            }
+        }
 
-                match model.success {
-                    Some(true) => map.insert("success".to_string(), Value::Bool(true)),
-                    Some(false) => map.insert("success".to_string(), Value::Bool(false)),
-                    None => map.insert("success".to_string(), Value::Null),
-                };
+        output_buffer.push(b']');
 
-                map.insert("task_event_type".to_string(), model.task_event_type);
+        let json_string = String::from_utf8(output_buffer).map_err(|e| {
+            error!("UTF8 conversion error: {e}");
+            (101, "UTF8 conversion error".to_string())
+        })?;
 
-                if let Some(res) = model.task_event_result {
-                    map.insert("task_event_result".to_string(), res);
-                } else {
-                    map.insert("task_event_result".to_string(), Value::Null);
-                }
+        // 零拷贝封装
+        let raw_value = RawValue::from_string(json_string).map_err(|e| {
+            error!("RawValue creation error: {e}");
+            (101, "RawValue creation error".to_string())
+        })?;
 
-                if let Some(err_msg) = model.error_message {
-                    map.insert("error_message".to_string(), Value::String(err_msg));
-                }
-
-                Value::Object(map)
-            })
-            .collect();
-
-        Ok(result_list)
+        Ok(raw_value)
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    Ok(process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }
+
+

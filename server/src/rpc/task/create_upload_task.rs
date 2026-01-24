@@ -110,10 +110,8 @@ pub async fn upload_task_result(_token: String, task_response: TaskEventResponse
             .transpose() // Result<Option<ActiveValue>, String>
             .map_err(|e| (101, e))?;
 
-        active_model.task_event_result = match result_json {
-            Some(active_val) => Set(Some(active_val.unwrap())),
-            None => Set(None),
-        };
+        active_model.task_event_result =
+            result_json.map_or(Set(None), |active_val| Set(Some(active_val.unwrap())));
 
         active_model.update(db).await.map_err(|e| {
             error!("Database update error: {e}");

@@ -8,6 +8,7 @@ use std::time::Duration;
 use tokio::time;
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 
+mod execute;
 pub mod ping;
 
 pub async fn handle_task() {
@@ -62,7 +63,7 @@ pub async fn handle_task() {
                                         Ok(duration) => {
                                             Ok(TaskEventResult::Ping(duration.as_millis_f64()))
                                         }
-                                        Err(e) => Err(e.clone()),
+                                        Err(e) => Err(e),
                                     }
                                 } else {
                                     Err("102: Permission Denied".to_string())
@@ -74,7 +75,7 @@ pub async fn handle_task() {
                                         Ok(duration) => {
                                             Ok(TaskEventResult::Ping(duration.as_millis_f64()))
                                         }
-                                        Err(e) => Err(e.clone()),
+                                        Err(e) => Err(e),
                                     }
                                 } else {
                                     Err("102: Permission Denied".to_string())
@@ -86,7 +87,7 @@ pub async fn handle_task() {
                                         Ok(duration) => {
                                             Ok(TaskEventResult::Ping(duration.as_millis_f64()))
                                         }
-                                        Err(e) => Err(e.clone()),
+                                        Err(e) => Err(e),
                                     }
                                 } else {
                                     Err("102: Permission Denied".to_string())
@@ -99,9 +100,12 @@ pub async fn handle_task() {
                                     Err("102: Permission Denied".to_string())
                                 }
                             }
-                            TaskEventType::Execute(_) => {
+                            TaskEventType::Execute(command) => {
                                 if server.allow_execute.unwrap_or(false) {
-                                    todo!()
+                                    match execute::execute_command(command).await {
+                                        Ok(output) => Ok(TaskEventResult::Execute(output)),
+                                        Err(e) => Err(e),
+                                    }
                                 } else {
                                     Err("102: Permission Denied".to_string())
                                 }

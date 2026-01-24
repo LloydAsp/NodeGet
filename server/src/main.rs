@@ -1,11 +1,11 @@
-#![warn(clippy::all, clippy::pedantic)]
+#![feature(duration_millis_float)]
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(
     clippy::cast_sign_loss,
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::similar_names,
     clippy::too_many_lines,
-    clippy::await_holding_lock,
     dead_code
 )]
 
@@ -22,6 +22,12 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::OnceLock;
 use tokio::sync::OnceCell;
+
+#[cfg(all(not(target_os = "windows"), feature = "tikv-jemallocator"))]
+use tikv_jemallocator::Jemalloc;
+#[cfg(all(not(target_os = "windows"), feature = "tikv-jemallocator"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 mod db_connection;
 mod entity;
@@ -49,6 +55,12 @@ async fn main() {
     init_db_connection().await;
 
     let server = ServerBuilder::default()
+        .set_config(
+            jsonrpsee::server::ServerConfig::builder()
+                .max_response_body_size(1024 * 1024 * 1024) // 1GB
+                .max_request_body_size(1024 * 1024 * 1024) // 1GB
+                .build(),
+        )
         .build(config.ws_listener.parse::<SocketAddr>().unwrap())
         .await
         .unwrap();

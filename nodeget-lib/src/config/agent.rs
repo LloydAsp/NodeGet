@@ -12,6 +12,9 @@ pub struct AgentConfig {
     pub agent_uuid: uuid::Uuid,
     pub connect_timeout_ms: Option<u64>, // ms
     pub server: Option<Vec<Server>>,
+
+    pub exec_shell: Option<String>, // Windows cmd / Others bash or sh
+    pub exec_max_character: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -35,10 +38,10 @@ pub struct Server {
 impl AgentConfig {
     pub async fn get_and_parse_config(
         path: impl AsRef<Path>,
-    ) -> Result<AgentConfig, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let file = fs::read_to_string(path).await?;
 
-        let config: AgentConfig = toml::from_str(&file)?;
+        let config: Self = toml::from_str(&file)?;
 
         Ok(config)
     }

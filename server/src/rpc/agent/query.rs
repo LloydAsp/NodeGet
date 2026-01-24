@@ -1,35 +1,42 @@
-// 该文件实现 供给调用者查询 API
-
+use jsonrpsee::core::RpcResult;
 use crate::entity::{dynamic_monitoring, static_monitoring};
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
+use futures::StreamExt;
 use log::error;
 use nodeget_lib::monitoring::query::{
-    DynamicDataQuery, DynamicDataQueryField, QueryCondition, StaticDataQuery, StaticDataQueryField,
+    DynamicDataQuery, DynamicDataQueryField, QueryCondition, StaticDataQuery,
+    StaticDataQueryField,
 };
-use nodeget_lib::utils::error_message::generate_error_message;
-use sea_orm::QueryFilter;
-use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, Order, QueryOrder, QuerySelect};
-use serde_json::{Map, Value, from_value};
+use nodeget_lib::utils::error_message::error_to_raw;
+use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect};
+use serde_json::{Map, Value};
+use serde_json::value::RawValue;
+use migration::ExprTrait;
+use nodeget_lib::utils::rename_key;
 
-pub async fn query_static(_token: String, data: Value) -> Value {
+pub async fn query_static(_token: String, static_data_query: StaticDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
 
-        // 解析请求
-        let query_req: StaticDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse query data: {e}");
-            (101, format!("Unable to parse query data: {e}"))
-        })?;
+        let mut query = static_monitoring::Entity::find().select_only();
 
-        // 查询构建器
-        let mut query = static_monitoring::Entity::find();
+        query = query
+            .column(static_monitoring::Column::Uuid)
+            .column(static_monitoring::Column::Timestamp);
 
-        // 最新数据 (仅一个)
+        for field in &static_data_query.fields {
+            match field {
+                StaticDataQueryField::Cpu => query = query.column(static_monitoring::Column::CpuData),
+                StaticDataQueryField::System => query = query.column(static_monitoring::Column::SystemData),
+                StaticDataQueryField::Gpu => query = query.column(static_monitoring::Column::GpuData),
+            }
+        }
+
         let mut is_last = false;
+        let mut limit_count: Option<u64> = None;
 
-        // 应用过滤条件 (QueryCondition)
-        for cond in query_req.condition {
+        for cond in static_data_query.condition {
             match cond {
                 QueryCondition::Uuid(uuid) => {
                     query = query.filter(static_monitoring::Column::Uuid.eq(uuid));
@@ -47,13 +54,23 @@ pub async fn query_static(_token: String, data: Value) -> Value {
                 QueryCondition::TimestampTo(end) => {
                     query = query.filter(static_monitoring::Column::Timestamp.lte(end));
                 }
+                QueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
                 QueryCondition::Last => {
                     is_last = true;
                 }
             }
         }
 
-        // 时间倒序第一条
+        if let Some(l) = limit_count {
+            query = query
+                .order_by(static_monitoring::Column::Timestamp, Order::Desc)
+                .limit(l);
+        } else {
+            query = query.order_by(static_monitoring::Column::Timestamp, Order::Asc);
+        }
+
         if is_last {
             query = query
                 .order_by(static_monitoring::Column::Timestamp, Order::Desc)
@@ -62,64 +79,91 @@ pub async fn query_static(_token: String, data: Value) -> Value {
             query = query.order_by(static_monitoring::Column::Timestamp, Order::Asc);
         }
 
-        // 查询
-        let models = query.all(db).await.map_err(|e| {
+        let mut stream = query.into_json().stream(db).await.map_err(|e| {
             error!("Database query error: {e}");
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
-            .into_iter()
-            .map(|model| {
-                let mut map = Map::new();
+        let capacity = limit_count.unwrap_or(100) as usize * 200;
+        let mut output_buffer: Vec<u8> = Vec::with_capacity(capacity);
 
-                map.insert("uuid".to_string(), Value::String(String::from(model.uuid)));
-                map.insert(
-                    "timestamp".to_string(),
-                    Value::Number(model.timestamp.into()),
-                );
+        output_buffer.push(b'[');
 
-                for field in &query_req.fields {
-                    match field {
-                        StaticDataQueryField::Cpu => {
-                            map.insert("cpu".to_string(), model.cpu_data.clone());
-                        }
-                        StaticDataQueryField::System => {
-                            map.insert("system".to_string(), model.system_data.clone());
-                        }
-                        StaticDataQueryField::Gpu => {
-                            map.insert("gpu".to_string(), model.gpu_data.clone());
-                        }
+        let mut first = true;
+
+        while let Some(item_res) = stream.next().await {
+            match item_res {
+                Ok(mut v) => {
+                    if let Some(obj) = v.as_object_mut() {
+                        rename_key(obj, "cpu_data", "cpu");
+                        rename_key(obj, "system_data", "system");
+                        rename_key(obj, "gpu_data", "gpu");
                     }
+
+                    if !first {
+                        output_buffer.push(b',');
+                    } else {
+                        first = false;
+                    }
+
+                    if let Err(e) = serde_json::to_writer(&mut output_buffer, &v) {
+                        error!("Serialization failed: {e}");
+                        return Err((101, format!("Serialization failed: {e}")));
+                    }
+                },
+                Err(e) => {
+                    error!("Stream read error: {e}");
+                    return Err((103, format!("Stream read error: {e}")));
                 }
+            }
+        }
 
-                Value::Object(map)
-            })
-            .collect();
+        output_buffer.push(b']');
 
-        Ok(result_list)
+        let json_string = String::from_utf8(output_buffer).map_err(|e| {
+            error!("UTF8 conversion error: {e}");
+            (101, "UTF8 conversion error (internal)".to_string())
+        })?;
+
+        let raw_value = RawValue::from_string(json_string).map_err(|e| {
+            error!("RawValue creation error: {e}");
+            (101, "RawValue creation error".to_string())
+        })?;
+
+        Ok(raw_value)
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    Ok(process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }
 
-pub async fn query_dynamic(_token: String, data: Value) -> Value {
+pub async fn query_dynamic(_token: String, dynamic_data_query: DynamicDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
 
-        let query_req: DynamicDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse dynamic query data: {e}");
-            (101, format!("Unable to parse dynamic query data: {e}"))
-        })?;
+        let mut query = dynamic_monitoring::Entity::find().select_only();
 
-        let mut query = dynamic_monitoring::Entity::find();
+        query = query
+            .column(dynamic_monitoring::Column::Uuid)
+            .column(dynamic_monitoring::Column::Timestamp);
+
+        for field in &dynamic_data_query.fields {
+            match field {
+                DynamicDataQueryField::Cpu => query = query.column(dynamic_monitoring::Column::CpuData),
+                DynamicDataQueryField::Ram => query = query.column(dynamic_monitoring::Column::RamData),
+                DynamicDataQueryField::Load => query = query.column(dynamic_monitoring::Column::LoadData),
+                DynamicDataQueryField::System => query = query.column(dynamic_monitoring::Column::SystemData),
+                DynamicDataQueryField::Disk => query = query.column(dynamic_monitoring::Column::DiskData),
+                DynamicDataQueryField::Network => query = query.column(dynamic_monitoring::Column::NetworkData),
+                DynamicDataQueryField::Gpu => query = query.column(dynamic_monitoring::Column::GpuData),
+            }
+        }
 
         let mut is_last = false;
+        let mut limit_count: Option<u64> = None;
 
-        for cond in query_req.condition {
+        for cond in dynamic_data_query.condition {
             match cond {
                 QueryCondition::Uuid(uuid) => {
                     query = query.filter(dynamic_monitoring::Column::Uuid.eq(uuid));
@@ -137,73 +181,89 @@ pub async fn query_dynamic(_token: String, data: Value) -> Value {
                 QueryCondition::TimestampTo(end) => {
                     query = query.filter(dynamic_monitoring::Column::Timestamp.lte(end));
                 }
+                QueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
                 QueryCondition::Last => {
                     is_last = true;
                 }
             }
         }
 
+        if let Some(l) = limit_count {
+            query = query
+                .order_by(dynamic_monitoring::Column::Timestamp, Order::Desc)
+                .limit(l);
+        } else {
+            query = query.order_by(dynamic_monitoring::Column::Timestamp, Order::Asc);
+        }
+
         if is_last {
-            // 取最新的一条
             query = query
                 .order_by(dynamic_monitoring::Column::Timestamp, Order::Desc)
                 .limit(1);
         } else {
-            // 默认按时间正序
             query = query.order_by(dynamic_monitoring::Column::Timestamp, Order::Asc);
         }
 
-        let models = query.all(db).await.map_err(|e| {
+        let mut stream = query.into_json().stream(db).await.map_err(|e| {
             error!("Database query error: {e}");
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
-            .into_iter()
-            .map(|model| {
-                let mut map = Map::new();
+        let capacity = limit_count.unwrap_or(5000) as usize * 200;
+        let mut output_buffer: Vec<u8> = Vec::with_capacity(capacity);
 
-                map.insert("uuid".to_string(), Value::String(String::from(model.uuid)));
-                map.insert(
-                    "timestamp".to_string(),
-                    Value::Number(model.timestamp.into()),
-                );
+        output_buffer.push(b'[');
+        let mut first = true;
 
-                for field in &query_req.fields {
-                    match field {
-                        DynamicDataQueryField::Cpu => {
-                            map.insert("cpu".to_string(), model.cpu_data.clone());
-                        }
-                        DynamicDataQueryField::Ram => {
-                            map.insert("ram".to_string(), model.ram_data.clone());
-                        }
-                        DynamicDataQueryField::Load => {
-                            map.insert("load".to_string(), model.load_data.clone());
-                        }
-                        DynamicDataQueryField::System => {
-                            map.insert("system".to_string(), model.system_data.clone());
-                        }
-                        DynamicDataQueryField::Disk => {
-                            map.insert("disk".to_string(), model.disk_data.clone());
-                        }
-                        DynamicDataQueryField::Network => {
-                            map.insert("network".to_string(), model.network_data.clone());
-                        }
-                        DynamicDataQueryField::Gpu => {
-                            map.insert("gpu".to_string(), model.gpu_data.clone());
-                        }
+        while let Some(item_res) = stream.next().await {
+            match item_res {
+                Ok(mut v) => {
+                    if let Some(obj) = v.as_object_mut() {
+                        rename_key(obj, "cpu_data", "cpu");
+                        rename_key(obj, "ram_data", "ram");
+                        rename_key(obj, "load_data", "load");
+                        rename_key(obj, "system_data", "system");
+                        rename_key(obj, "disk_data", "disk");
+                        rename_key(obj, "network_data", "network");
+                        rename_key(obj, "gpu_data", "gpu");
                     }
+
+                    if !first {
+                        output_buffer.push(b',');
+                    } else {
+                        first = false;
+                    }
+
+                    if let Err(e) = serde_json::to_writer(&mut output_buffer, &v) {
+                        error!("Serialization failed: {e}");
+                        return Err((101, format!("Serialization failed: {e}")));
+                    }
+                },
+                Err(e) => {
+                    error!("Stream read error: {e}");
+                    return Err((103, format!("Stream read error: {e}")));
                 }
+            }
+        }
 
-                Value::Object(map)
-            })
-            .collect();
+        output_buffer.push(b']');
 
-        Ok(result_list)
+        let json_string = String::from_utf8(output_buffer).map_err(|e| {
+            error!("UTF8 conversion error: {e}");
+            (101, "UTF8 conversion error".to_string())
+        })?;
+
+        let raw_value = RawValue::from_string(json_string).map_err(|e| {
+            error!("RawValue creation error: {e}");
+            (101, "RawValue creation error".to_string())
+        })?;
+
+        Ok(raw_value)
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    Ok(process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }
