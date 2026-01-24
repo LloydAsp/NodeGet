@@ -1,26 +1,21 @@
 // 该文件实现 供给调用者查询 API
 
 use crate::entity::{dynamic_monitoring, static_monitoring};
-use crate::rpc::agent::AgentRpcImpl;
 use crate::rpc::RpcHelper;
+use crate::rpc::agent::AgentRpcImpl;
 use log::error;
 use nodeget_lib::monitoring::query::{
-    DynamicDataQuery, DynamicDataQueryField, QueryCondition, StaticDataQuery, StaticDataQueryField,
+    DynamicDataQuery, DynamicDataQueryField, DynamicResponseItem, QueryCondition, StaticDataQuery,
+    StaticDataQueryField, StaticResponseItem,
 };
 use nodeget_lib::utils::error_message::generate_error_message;
 use sea_orm::QueryFilter;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, Order, QueryOrder, QuerySelect};
-use serde_json::{from_value, Map, Value};
+use serde_json::Value;
 
-pub async fn query_static(_token: String, data: Value) -> Value {
+pub async fn query_static(_token: String, static_data_query: StaticDataQuery) -> Value {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
-
-        // 解析请求
-        let query_req: StaticDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse query data: {e}");
-            (101, format!("Unable to parse query data: {e}"))
-        })?;
 
         // 查询构建器
         let mut query = static_monitoring::Entity::find();
@@ -32,7 +27,7 @@ pub async fn query_static(_token: String, data: Value) -> Value {
         let mut limit_count: Option<u64> = None;
 
         // 应用过滤条件 (QueryCondition)
-        for cond in query_req.condition {
+        for cond in static_data_query.condition {
             match cond {
                 QueryCondition::Uuid(uuid) => {
                     query = query.filter(static_monitoring::Column::Uuid.eq(uuid));
@@ -50,7 +45,9 @@ pub async fn query_static(_token: String, data: Value) -> Value {
                 QueryCondition::TimestampTo(end) => {
                     query = query.filter(static_monitoring::Column::Timestamp.lte(end));
                 }
-                QueryCondition::Limit(n) => { limit_count = Some(n); }
+                QueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
                 QueryCondition::Last => {
                     is_last = true;
                 }
@@ -58,7 +55,9 @@ pub async fn query_static(_token: String, data: Value) -> Value {
         }
 
         if let Some(l) = limit_count {
-            query = query.order_by(static_monitoring::Column::Timestamp, Order::Desc).limit(l);
+            query = query
+                .order_by(static_monitoring::Column::Timestamp, Order::Desc)
+                .limit(l);
         } else {
             query = query.order_by(static_monitoring::Column::Timestamp, Order::Asc);
         }
@@ -78,52 +77,39 @@ pub async fn query_static(_token: String, data: Value) -> Value {
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
+        let result_list: Vec<StaticResponseItem> = models
             .into_iter()
             .map(|model| {
-                let mut map = Map::new();
-
-                map.insert("uuid".to_string(), Value::String(String::from(model.uuid)));
-                map.insert(
-                    "timestamp".to_string(),
-                    Value::Number(model.timestamp.into()),
-                );
-
-                for field in &query_req.fields {
+                let mut item = StaticResponseItem {
+                    uuid: model.uuid.to_string(),
+                    timestamp: model.timestamp,
+                    cpu: None,
+                    system: None,
+                    gpu: None,
+                };
+                for field in &static_data_query.fields {
                     match field {
-                        StaticDataQueryField::Cpu => {
-                            map.insert("cpu".to_string(), model.cpu_data.clone());
-                        }
+                        StaticDataQueryField::Cpu => item.cpu = Some(model.cpu_data.clone()),
                         StaticDataQueryField::System => {
-                            map.insert("system".to_string(), model.system_data.clone());
+                            item.system = Some(model.system_data.clone());
                         }
-                        StaticDataQueryField::Gpu => {
-                            map.insert("gpu".to_string(), model.gpu_data.clone());
-                        }
+                        StaticDataQueryField::Gpu => item.gpu = Some(model.gpu_data.clone()),
                     }
                 }
-
-                Value::Object(map)
+                item
             })
             .collect();
-
-        Ok(result_list)
+        Ok(serde_json::to_value(result_list).unwrap())
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
 }
 
-pub async fn query_dynamic(_token: String, data: Value) -> Value {
+pub async fn query_dynamic(_token: String, dynamic_data_query: DynamicDataQuery) -> Value {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
-
-        let query_req: DynamicDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse dynamic query data: {e}");
-            (101, format!("Unable to parse dynamic query data: {e}"))
-        })?;
 
         let mut query = dynamic_monitoring::Entity::find();
 
@@ -132,7 +118,7 @@ pub async fn query_dynamic(_token: String, data: Value) -> Value {
         // 查询数量限制
         let mut limit_count: Option<u64> = None;
 
-        for cond in query_req.condition {
+        for cond in dynamic_data_query.condition {
             match cond {
                 QueryCondition::Uuid(uuid) => {
                     query = query.filter(dynamic_monitoring::Column::Uuid.eq(uuid));
@@ -150,7 +136,9 @@ pub async fn query_dynamic(_token: String, data: Value) -> Value {
                 QueryCondition::TimestampTo(end) => {
                     query = query.filter(dynamic_monitoring::Column::Timestamp.lte(end));
                 }
-                QueryCondition::Limit(n) => { limit_count = Some(n); }
+                QueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
                 QueryCondition::Last => {
                     is_last = true;
                 }
@@ -158,7 +146,9 @@ pub async fn query_dynamic(_token: String, data: Value) -> Value {
         }
 
         if let Some(l) = limit_count {
-            query = query.order_by(dynamic_monitoring::Column::Timestamp, Order::Desc).limit(l);
+            query = query
+                .order_by(dynamic_monitoring::Column::Timestamp, Order::Desc)
+                .limit(l);
         } else {
             query = query.order_by(dynamic_monitoring::Column::Timestamp, Order::Asc);
         }
@@ -178,52 +168,42 @@ pub async fn query_dynamic(_token: String, data: Value) -> Value {
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
+        let result_list: Vec<DynamicResponseItem> = models
             .into_iter()
             .map(|model| {
-                let mut map = Map::new();
-
-                map.insert("uuid".to_string(), Value::String(String::from(model.uuid)));
-                map.insert(
-                    "timestamp".to_string(),
-                    Value::Number(model.timestamp.into()),
-                );
-
-                for field in &query_req.fields {
+                let mut item = DynamicResponseItem {
+                    uuid: model.uuid.to_string(),
+                    timestamp: model.timestamp,
+                    cpu: None,
+                    ram: None,
+                    load: None,
+                    system: None,
+                    disk: None,
+                    network: None,
+                    gpu: None,
+                };
+                for field in &dynamic_data_query.fields {
                     match field {
-                        DynamicDataQueryField::Cpu => {
-                            map.insert("cpu".to_string(), model.cpu_data.clone());
-                        }
-                        DynamicDataQueryField::Ram => {
-                            map.insert("ram".to_string(), model.ram_data.clone());
-                        }
-                        DynamicDataQueryField::Load => {
-                            map.insert("load".to_string(), model.load_data.clone());
-                        }
+                        DynamicDataQueryField::Cpu => item.cpu = Some(model.cpu_data.clone()),
+                        DynamicDataQueryField::Ram => item.ram = Some(model.ram_data.clone()),
+                        DynamicDataQueryField::Load => item.load = Some(model.load_data.clone()),
                         DynamicDataQueryField::System => {
-                            map.insert("system".to_string(), model.system_data.clone());
+                            item.system = Some(model.system_data.clone());
                         }
-                        DynamicDataQueryField::Disk => {
-                            map.insert("disk".to_string(), model.disk_data.clone());
-                        }
+                        DynamicDataQueryField::Disk => item.disk = Some(model.disk_data.clone()),
                         DynamicDataQueryField::Network => {
-                            map.insert("network".to_string(), model.network_data.clone());
+                            item.network = Some(model.network_data.clone());
                         }
-                        DynamicDataQueryField::Gpu => {
-                            map.insert("gpu".to_string(), model.gpu_data.clone());
-                        }
+                        DynamicDataQueryField::Gpu => item.gpu = Some(model.gpu_data.clone()),
                     }
                 }
-
-                Value::Object(map)
+                item
             })
             .collect();
-
-        Ok(result_list)
+        Ok(serde_json::to_value(result_list).unwrap())
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
 }

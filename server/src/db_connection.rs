@@ -1,5 +1,5 @@
 use crate::{DB, SERVER_CONFIG};
-use log::{error, info, LevelFilter};
+use log::{LevelFilter, error, info};
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectOptions, Database};
 use std::process;
@@ -15,7 +15,7 @@ pub async fn init_db_connection() {
                 .database
                 .sqlx_log_level
                 .clone()
-                .unwrap_or("info".to_string()),
+                .unwrap_or_else(|| "info".to_string()),
         ) else {
             error!(
                 "Configuration error: Invalid sqlx_log_level '{}'",
@@ -23,7 +23,7 @@ pub async fn init_db_connection() {
                     .database
                     .sqlx_log_level
                     .clone()
-                    .unwrap_or("info".to_string())
+                    .unwrap_or_else(|| "info".to_string())
             );
             process::exit(1);
         };
@@ -62,5 +62,5 @@ pub async fn init_db_connection() {
 
         db
     })
-        .await;
+    .await;
 }

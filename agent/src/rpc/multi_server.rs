@@ -170,15 +170,16 @@ pub async fn send_to(server_name: &str, msg: Message) -> Result<(), String> {
         .read()
         .await;
 
-    if let Some(handle) = pool.get(server_name) {
-        handle
-            .uplink_tx
-            .send(msg)
-            .map(|_| ())
-            .map_err(|_| "Sending channel issue".to_string())
-    } else {
-        Err(format!("Server not found: {server_name}"))
-    }
+    pool.get(server_name).map_or_else(
+        || Err(format!("Server not found: {server_name}")),
+        |handle| {
+            handle
+                .uplink_tx
+                .send(msg)
+                .map(|_| ())
+                .map_err(|_| "Sending channel issue".to_string())
+        },
+    )
 }
 
 pub async fn subscribe_to(server_name: &str) -> Result<broadcast::Receiver<Message>, String> {
@@ -188,9 +189,8 @@ pub async fn subscribe_to(server_name: &str) -> Result<broadcast::Receiver<Messa
         .read()
         .await;
 
-    if let Some(handle) = pool.get(server_name) {
-        Ok(handle.downlink_tx.subscribe())
-    } else {
-        Err(format!("Server not found: {server_name}"))
-    }
+    pool.get(server_name).map_or_else(
+        || Err(format!("Server not found: {server_name}")),
+        |handle| Ok(handle.downlink_tx.subscribe()),
+    )
 }

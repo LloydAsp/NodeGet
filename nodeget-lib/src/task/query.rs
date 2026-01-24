@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -19,7 +20,18 @@ pub enum TaskQueryCondition {
     Last,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskDataQuery {
     pub condition: Vec<TaskQueryCondition>,
+}
+
+#[derive(Serialize)]
+pub struct TaskResponseItem {
+    pub task_id: i64,
+    pub uuid: String,
+    pub timestamp: Option<i64>,
+    pub success: Option<bool>,
+    pub task_event_type: Value,
+    pub task_event_result: Option<Value>,
+    pub error_message: Option<String>,
 }

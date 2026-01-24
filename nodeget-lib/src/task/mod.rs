@@ -13,7 +13,7 @@ pub enum TaskEventType {
     Execute(String),    // 命令执行
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TaskEvent {
     pub task_id: u64,
     pub task_token: String, // 仅用于校验上传者身份，不是鉴权环境之一

@@ -14,7 +14,7 @@ use crate::rpc::agent::RpcServer as AgentRpcServer;
 use crate::rpc::nodeget::RpcServer as NodegetRpcServer;
 use crate::rpc::task::{RpcServer, TaskManager};
 use jsonrpsee::server::ServerBuilder;
-use log::{info, Level};
+use log::{Level, info};
 use nodeget_lib::config::server::ServerConfig;
 use nodeget_lib::utils::compare_uuid;
 use sea_orm::DatabaseConnection;
@@ -51,9 +51,9 @@ async fn main() {
     let server = ServerBuilder::default()
         .set_config(
             jsonrpsee::server::ServerConfig::builder()
-                .max_response_body_size(1 * 1024 * 1024 * 1024) // 1GB
-                .max_request_body_size(1 * 1024 * 1024 * 1024) // 1GB
-                .build()
+                .max_response_body_size(1024 * 1024 * 1024) // 1GB
+                .max_request_body_size(1024 * 1024 * 1024) // 1GB
+                .build(),
         )
         .build(config.ws_listener.parse::<SocketAddr>().unwrap())
         .await
@@ -68,7 +68,7 @@ async fn main() {
             rpc::task::TaskRpcImpl {
                 manager: task_manager.clone(),
             }
-                .into_rpc(),
+            .into_rpc(),
         )
         .unwrap();
 

@@ -1,31 +1,25 @@
 use crate::entity::task;
-use crate::rpc::task::TaskRpcImpl;
 use crate::rpc::RpcHelper;
+use crate::rpc::task::TaskRpcImpl;
 use log::error;
-use nodeget_lib::task::query::{TaskDataQuery, TaskQueryCondition};
+use nodeget_lib::task::query::{TaskDataQuery, TaskQueryCondition, TaskResponseItem};
 use nodeget_lib::utils::error_message::generate_error_message;
 use sea_orm::sea_query::{Alias, BinOper, Expr};
 use sea_orm::{
-    ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter,
-    QueryOrder, QuerySelect,
+    ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter, QueryOrder, QuerySelect,
 };
-use serde_json::{from_value, Map, Value};
+use serde_json::Value;
 
-pub async fn query(_token: String, data: Value) -> Value {
+pub async fn query(_token: String, task_data_query: TaskDataQuery) -> Value {
     let process_logic = async {
         let db = TaskRpcImpl::get_db()?;
-
-        let query_req: TaskDataQuery = from_value(data).map_err(|e| {
-            error!("Unable to parse task query data: {e}");
-            (101, format!("Unable to parse task query data: {e}"))
-        })?;
 
         let mut query = task::Entity::find();
         let mut is_last = false;
 
         let mut limit_count: Option<u64> = None;
 
-        for cond in query_req.condition {
+        for cond in task_data_query.condition {
             match cond {
                 TaskQueryCondition::TaskId(id) => {
                     query = query.filter(task::Column::Id.eq(id.cast_signed()));
@@ -74,7 +68,9 @@ pub async fn query(_token: String, data: Value) -> Value {
                     }
                 }
 
-                TaskQueryCondition::Limit(n) => { limit_count = Some(n); }
+                TaskQueryCondition::Limit(n) => {
+                    limit_count = Some(n);
+                }
 
                 TaskQueryCondition::Last => {
                     is_last = true;
@@ -99,48 +95,22 @@ pub async fn query(_token: String, data: Value) -> Value {
             (103, format!("Database query error: {e}"))
         })?;
 
-        let result_list: Vec<Value> = models
+        let result_list: Vec<TaskResponseItem> = models
             .into_iter()
-            .map(|model| {
-                let mut map = Map::new();
-
-                map.insert("task_id".to_string(), Value::Number(model.id.into()));
-                map.insert("uuid".to_string(), Value::String(model.uuid.to_string()));
-                map.insert("token".to_string(), Value::String(model.token));
-
-                if let Some(ts) = model.timestamp {
-                    map.insert("timestamp".to_string(), Value::Number(ts.into()));
-                } else {
-                    map.insert("timestamp".to_string(), Value::Null);
-                }
-
-                match model.success {
-                    Some(true) => map.insert("success".to_string(), Value::Bool(true)),
-                    Some(false) => map.insert("success".to_string(), Value::Bool(false)),
-                    None => map.insert("success".to_string(), Value::Null),
-                };
-
-                map.insert("task_event_type".to_string(), model.task_event_type);
-
-                if let Some(res) = model.task_event_result {
-                    map.insert("task_event_result".to_string(), res);
-                } else {
-                    map.insert("task_event_result".to_string(), Value::Null);
-                }
-
-                if let Some(err_msg) = model.error_message {
-                    map.insert("error_message".to_string(), Value::String(err_msg));
-                }
-
-                Value::Object(map)
+            .map(|model| TaskResponseItem {
+                task_id: 0,
+                uuid: model.uuid.to_string(),
+                timestamp: model.timestamp,
+                success: model.success,
+                task_event_type: model.task_event_type,
+                task_event_result: model.task_event_result,
+                error_message: model.error_message,
             })
             .collect();
-
-        Ok(result_list)
+        Ok(serde_json::to_value(result_list).unwrap())
     };
 
-    match process_logic.await {
-        Ok(results) => Value::Array(results),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
 }
