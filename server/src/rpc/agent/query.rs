@@ -1,5 +1,6 @@
 // 该文件实现 供给调用者查询 API
 
+use jsonrpsee::core::RpcResult;
 use crate::entity::{dynamic_monitoring, static_monitoring};
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
@@ -8,12 +9,13 @@ use nodeget_lib::monitoring::query::{
     DynamicDataQuery, DynamicDataQueryField, DynamicResponseItem, QueryCondition, StaticDataQuery,
     StaticDataQueryField, StaticResponseItem,
 };
-use nodeget_lib::utils::error_message::generate_error_message;
+use nodeget_lib::utils::error_message::{error_to_raw};
+use nodeget_lib::utils::to_raw_json;
 use sea_orm::QueryFilter;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, Order, QueryOrder, QuerySelect};
-use serde_json::Value;
+use serde_json::value::RawValue;
 
-pub async fn query_static(_token: String, static_data_query: StaticDataQuery) -> Value {
+pub async fn query_static(_token: String, static_data_query: StaticDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
 
@@ -99,15 +101,15 @@ pub async fn query_static(_token: String, static_data_query: StaticDataQuery) ->
                 item
             })
             .collect();
-        Ok(serde_json::to_value(result_list).unwrap())
+        Ok(to_raw_json(result_list))
     };
 
-    process_logic
+    Ok(process_logic
         .await
-        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }
 
-pub async fn query_dynamic(_token: String, dynamic_data_query: DynamicDataQuery) -> Value {
+pub async fn query_dynamic(_token: String, dynamic_data_query: DynamicDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = AgentRpcImpl::get_db()?;
 
@@ -200,10 +202,10 @@ pub async fn query_dynamic(_token: String, dynamic_data_query: DynamicDataQuery)
                 item
             })
             .collect();
-        Ok(serde_json::to_value(result_list).unwrap())
+        Ok(to_raw_json(result_list))
     };
 
-    process_logic
+    Ok(process_logic
         .await
-        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }

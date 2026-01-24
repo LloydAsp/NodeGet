@@ -1,16 +1,18 @@
+use jsonrpsee::core::RpcResult;
 use crate::entity::task;
 use crate::rpc::RpcHelper;
 use crate::rpc::task::TaskRpcImpl;
 use log::error;
 use nodeget_lib::task::query::{TaskDataQuery, TaskQueryCondition, TaskResponseItem};
-use nodeget_lib::utils::error_message::generate_error_message;
+use nodeget_lib::utils::error_message::{error_to_raw};
+use nodeget_lib::utils::to_raw_json;
 use sea_orm::sea_query::{Alias, BinOper, Expr};
 use sea_orm::{
     ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter, QueryOrder, QuerySelect,
 };
-use serde_json::Value;
+use serde_json::value::RawValue;
 
-pub async fn query(_token: String, task_data_query: TaskDataQuery) -> Value {
+pub async fn query(_token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let db = TaskRpcImpl::get_db()?;
 
@@ -107,10 +109,10 @@ pub async fn query(_token: String, task_data_query: TaskDataQuery) -> Value {
                 error_message: model.error_message,
             })
             .collect();
-        Ok(serde_json::to_value(result_list).unwrap())
+        Ok(to_raw_json(result_list))
     };
 
-    process_logic
+    Ok(process_logic
         .await
-        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
+        .unwrap_or_else(|(code, msg)| error_to_raw(code, &msg)))
 }

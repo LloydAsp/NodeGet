@@ -1,6 +1,8 @@
 use log::{error, warn};
 use rand::distr::Alphanumeric;
 use rand::{Rng, rng};
+use serde::Serialize;
+use serde_json::value::RawValue;
 
 pub mod error_message;
 pub mod version;
@@ -56,4 +58,17 @@ pub fn compare_uuid(set_uuid: uuid::Uuid) -> bool {
         warn!("Modify the UUID with caution!");
         false
     }
+}
+
+// 直接序列化为 RawValue，避免 Value 树
+pub fn to_raw_json<T: Serialize>(val: T) -> Box<RawValue> {
+    serde_json::value::to_raw_value(&val).unwrap_or_else(|e| {
+        error!("Serialization error: {e}");
+        // fallback
+        serde_json::value::to_raw_value(&serde_json::json!({
+            "error_id": 101,
+            "error_message": format!("Serialization error: {e}")
+        }))
+        .unwrap()
+    })
 }

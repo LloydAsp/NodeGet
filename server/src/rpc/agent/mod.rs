@@ -5,11 +5,12 @@ mod query;
 mod report;
 
 use crate::rpc::RpcHelper;
-use jsonrpsee::core::async_trait;
+use jsonrpsee::core::{async_trait, RpcResult};
 use jsonrpsee::proc_macros::rpc;
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use nodeget_lib::monitoring::query::{DynamicDataQuery, StaticDataQuery};
 use serde_json::Value;
+use serde_json::value::RawValue;
 
 #[rpc(server, namespace = "agent")]
 pub trait Rpc {
@@ -28,10 +29,18 @@ pub trait Rpc {
     ) -> Value;
 
     #[method(name = "query_static")]
-    async fn query_static(&self, token: String, static_data_query: StaticDataQuery) -> Value; // Vec<StaticResponseItem>
+    async fn query_static(
+        &self,
+        token: String,
+        static_data_query: StaticDataQuery,
+    ) -> RpcResult<Box<RawValue>>; // Vec<StaticResponseItem>
 
     #[method(name = "query_dynamic")]
-    async fn query_dynamic(&self, token: String, dynamic_data_query: DynamicDataQuery) -> Value; // Vec<DynamicResponseItem>
+    async fn query_dynamic(
+        &self,
+        token: String,
+        dynamic_data_query: DynamicDataQuery,
+    ) -> RpcResult<Box<RawValue>>; // Vec<DynamicResponseItem>
 }
 pub struct AgentRpcImpl;
 
@@ -55,11 +64,19 @@ impl RpcServer for AgentRpcImpl {
         report::report_dynamic(token, dynamic_monitoring_data).await
     }
 
-    async fn query_static(&self, token: String, static_data_query: StaticDataQuery) -> Value {
+    async fn query_static(
+        &self,
+        token: String,
+        static_data_query: StaticDataQuery,
+    ) -> RpcResult<Box<RawValue>> {
         query::query_static(token, static_data_query).await
     }
 
-    async fn query_dynamic(&self, token: String, dynamic_data_query: DynamicDataQuery) -> Value {
+    async fn query_dynamic(
+        &self,
+        token: String,
+        dynamic_data_query: DynamicDataQuery,
+    ) -> RpcResult<Box<RawValue>> {
         query::query_dynamic(token, dynamic_data_query).await
     }
 }

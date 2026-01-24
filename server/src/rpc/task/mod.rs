@@ -4,7 +4,7 @@ mod query;
 use crate::rpc::RpcHelper;
 use jsonrpsee::PendingSubscriptionSink;
 use jsonrpsee::SubscriptionMessage;
-use jsonrpsee::core::{JsonRawValue, SubscriptionResult};
+use jsonrpsee::core::{JsonRawValue, RpcResult, SubscriptionResult};
 use jsonrpsee::proc_macros::rpc;
 use log::{error, info};
 use migration::async_trait::async_trait;
@@ -12,6 +12,7 @@ use nodeget_lib::task::TaskEventType;
 use nodeget_lib::task::query::TaskDataQuery;
 use nodeget_lib::task::{TaskEvent, TaskEventResponse};
 use serde_json::Value;
+use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
@@ -34,7 +35,7 @@ pub trait Rpc {
     async fn upload_task_result(&self, token: String, task_response: TaskEventResponse) -> Value;
 
     #[method(name = "query")]
-    async fn query(&self, token: String, task_data_query: TaskDataQuery) -> Value;
+    async fn query(&self, token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>>;
 }
 
 pub struct TaskRpcImpl {
@@ -58,7 +59,7 @@ impl RpcServer for TaskRpcImpl {
         create_upload_task::upload_task_result(token, task_response).await
     }
 
-    async fn query(&self, token: String, task_data_query: TaskDataQuery) -> Value {
+    async fn query(&self, token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
         query::query(token, task_data_query).await
     }
 
