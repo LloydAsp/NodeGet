@@ -8,3 +8,6 @@ test.db
 Thumbs.db
 list_all_rs_file.py
 config.toml
+node_modules/
+docs/.vitepress/dist
+docs/.vitepress/cache
