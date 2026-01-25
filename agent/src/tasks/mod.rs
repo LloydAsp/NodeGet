@@ -10,6 +10,7 @@ use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 
 mod execute;
 pub mod ping;
+mod ip;
 
 pub async fn handle_task() {
     time::sleep(Duration::from_secs(1)).await;
@@ -106,6 +107,14 @@ pub async fn handle_task() {
                                         Ok(output) => Ok(TaskEventResult::Execute(output)),
                                         Err(e) => Err(e),
                                     }
+                                } else {
+                                    Err("102: Permission Denied".to_string())
+                                }
+                            }
+                            TaskEventType::Ip => {
+                                if server.allow_ip.unwrap_or(false) {
+                                    let ip_info = ip::ip().await;
+                                    Ok(TaskEventResult::Ip(ip_info.ipv4, ip_info.ipv6))
                                 } else {
                                     Err("102: Permission Denied".to_string())
                                 }
