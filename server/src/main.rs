@@ -47,7 +47,7 @@ async fn main() {
     simple_logger::init_with_level(Level::from_str(&config.log_level).unwrap()).unwrap();
 
     #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
-    tokio::spawn(|| async {
+    tokio::spawn(async {
         loop {
             use tikv_jemalloc_ctl::{epoch, stats};
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
