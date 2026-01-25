@@ -1,12 +1,12 @@
+use crate::AGENT_CONFIG;
 use log::trace;
+use nodeget_lib::config::agent::IpProvider;
+use serde_json::Value;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::time::Duration;
-use serde_json::Value;
 use tokio::task::JoinHandle;
 use ureq::config::IpFamily;
-use nodeget_lib::config::agent::IpProvider;
-use crate::AGENT_CONFIG;
 
 #[derive(Debug)]
 pub struct IPInfo {
@@ -15,7 +15,12 @@ pub struct IPInfo {
 }
 
 pub async fn ip() -> IPInfo {
-    let provider = AGENT_CONFIG.get().map_or(Some(IpProvider::Cloudflare), |config| config.ip_provider.clone() ).unwrap_or(IpProvider::Cloudflare);
+    let provider = AGENT_CONFIG
+        .get()
+        .map_or(Some(IpProvider::Cloudflare), |config| {
+            config.ip_provider.clone()
+        })
+        .unwrap_or(IpProvider::Cloudflare);
 
     match provider {
         IpProvider::Cloudflare => ip_cloudflare().await,
@@ -80,14 +85,20 @@ pub async fn ip_ipinfo() -> IPInfo {
 pub async fn ip_cloudflare() -> IPInfo {
     // IPv4 Task
     let ipv4: JoinHandle<Option<Ipv4Addr>> = tokio::spawn(async move {
-        let body = fetch_text("https://www.cloudflare.com/cdn-cgi/trace", IpFamily::Ipv4Only)?;
+        let body = fetch_text(
+            "https://www.cloudflare.com/cdn-cgi/trace",
+            IpFamily::Ipv4Only,
+        )?;
         let ip_str = parse_cloudflare_trace(&body)?;
         Ipv4Addr::from_str(&ip_str).ok()
     });
 
     // IPv6 Task
     let ipv6: JoinHandle<Option<Ipv6Addr>> = tokio::spawn(async move {
-        let body = fetch_text("https://www.cloudflare.com/cdn-cgi/trace", IpFamily::Ipv6Only)?;
+        let body = fetch_text(
+            "https://www.cloudflare.com/cdn-cgi/trace",
+            IpFamily::Ipv6Only,
+        )?;
         let ip_str = parse_cloudflare_trace(&body)?;
         Ipv6Addr::from_str(&ip_str).ok()
     });

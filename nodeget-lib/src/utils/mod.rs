@@ -65,7 +65,6 @@ pub fn compare_uuid(set_uuid: uuid::Uuid) -> bool {
 #[cfg(feature = "for-server")]
 use serde_json::value::RawValue;
 
-
 // 直接序列化为 RawValue，避免 Value 树
 #[cfg(feature = "for-server")]
 pub fn to_raw_json<T: Serialize>(val: T) -> Box<RawValue> {
@@ -83,9 +82,10 @@ pub fn to_raw_json<T: Serialize>(val: T) -> Box<RawValue> {
 #[cfg(feature = "for-server")]
 pub fn try_parse_json_field(map: &mut Map<String, Value>, key: &str) {
     if let Some(Value::String(s)) = map.get(key)
-        && let Ok(parsed) = serde_json::from_str::<Value>(s) {
-            map.insert(key.to_string(), parsed);
-        }
+        && let Ok(parsed) = serde_json::from_str::<Value>(s)
+    {
+        map.insert(key.to_string(), parsed);
+    }
 }
 
 #[cfg(feature = "for-server")]
@@ -100,9 +100,10 @@ pub fn rename_and_fix_json(map: &mut Map<String, Value>, old_key: &str, new_key:
     // 同时完成：取出旧值 -> (如果是 String 则解析) -> 插入新 Key
     if let Some(mut value) = map.remove(old_key) {
         if let Value::String(s) = &value
-            && let Ok(parsed) = serde_json::from_str::<Value>(s) {
-                value = parsed;
-            }
+            && let Ok(parsed) = serde_json::from_str::<Value>(s)
+        {
+            value = parsed;
+        }
         map.insert(new_key.to_string(), value);
     }
 }

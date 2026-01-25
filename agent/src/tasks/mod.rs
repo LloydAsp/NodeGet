@@ -9,8 +9,8 @@ use tokio::time;
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 
 mod execute;
-pub mod ping;
 mod ip;
+pub mod ping;
 
 pub async fn handle_task() {
     time::sleep(Duration::from_secs(1)).await;

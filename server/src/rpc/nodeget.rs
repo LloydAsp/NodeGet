@@ -1,8 +1,8 @@
-use jsonrpsee::core::{async_trait};
+use jsonrpsee::core::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use log::info;
-use serde_json::Value;
 use nodeget_lib::utils::version::NodeGetVersion;
+use serde_json::Value;
 
 #[rpc(server, namespace = "nodeget-server")]
 pub trait Rpc {
@@ -11,7 +11,6 @@ pub trait Rpc {
 
     #[method(name = "version")]
     async fn version(&self) -> Value;
-
 }
 
 pub struct NodegetServerRpcImpl;
