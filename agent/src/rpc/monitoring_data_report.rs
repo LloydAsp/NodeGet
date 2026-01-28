@@ -5,7 +5,7 @@ use crate::rpc::wrap_json_into_rpc_with_id_1;
 use log::{error, trace};
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use std::time::Duration;
-use tokio::time::{interval, MissedTickBehavior}; // 引入 interval 相关组件
+use tokio::time::{MissedTickBehavior, interval}; // 引入 interval 相关组件
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 
 pub async fn handle_static_monitoring_data_report() {
@@ -35,7 +35,7 @@ pub async fn handle_static_monitoring_data_report() {
                         ],
                     ))),
                 )
-                    .await
+                .await
                 {
                     error!("{e}");
                 }
@@ -72,7 +72,7 @@ pub async fn handle_dynamic_monitoring_data_report() {
                         ],
                     ))),
                 )
-                    .await
+                .await
                 {
                     error!("{e}");
                 }

@@ -47,14 +47,16 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager.create_index(
-            Index::create()
-                .name("idx-task-uuid-timestamp")
-                .table(TaskInDatabase::Table)
-                .col(TaskInDatabase::Uuid)
-                .col(TaskInDatabase::Timestamp)
-                .to_owned(),
-        ).await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-task-uuid-timestamp")
+                    .table(TaskInDatabase::Table)
+                    .col(TaskInDatabase::Uuid)
+                    .col(TaskInDatabase::Timestamp)
+                    .to_owned(),
+            )
+            .await?;
 
         match manager.get_database_backend() {
             DbBackend::Postgres => {
@@ -64,7 +66,7 @@ impl MigrationTrait for Migration {
                         ALTER COLUMN task_event_result SET COMPRESSION lz4,
                         ALTER COLUMN task_event_type SET COMPRESSION lz4;",
                 )
-                    .await?;
+                .await?;
             }
             DbBackend::Sqlite => {}
             _ => {}

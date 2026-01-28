@@ -68,14 +68,16 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager.create_index(
-            Index::create()
-                .name("idx-dynamic-uuid-timestamp")
-                .table(DynamicMonitoringInDatabase::Table)
-                .col(DynamicMonitoringInDatabase::Uuid)
-                .col(DynamicMonitoringInDatabase::Timestamp)
-                .to_owned(),
-        ).await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-dynamic-uuid-timestamp")
+                    .table(DynamicMonitoringInDatabase::Table)
+                    .col(DynamicMonitoringInDatabase::Uuid)
+                    .col(DynamicMonitoringInDatabase::Timestamp)
+                    .to_owned(),
+            )
+            .await?;
 
         match manager.get_database_backend() {
             DbBackend::Postgres => {
@@ -90,7 +92,7 @@ impl MigrationTrait for Migration {
                         ALTER COLUMN network_data SET COMPRESSION lz4,
                         ALTER COLUMN gpu_data SET COMPRESSION lz4;",
                 )
-                    .await?;
+                .await?;
             }
             DbBackend::Sqlite => {}
             _ => {}
