@@ -9,24 +9,17 @@
     dead_code
 )]
 
-use crate::db_connection::init_db_connection;
 use crate::rpc::agent::RpcServer as AgentRpcServer;
-use crate::rpc::nodeget::RpcServer as NodegetRpcServer;
-use crate::rpc::task::{RpcServer, TaskManager};
-use axum::Router;
+use crate::rpc::nodeget::RpcServer as NodeGetRpcServer;
+use crate::rpc::task::RpcServer as TaskRpcServer;
 use axum::routing::any;
-use jsonrpsee::server::{Server, stop_channel};
-use log::{Level, info};
-use nodeget_lib::config::server::ServerConfig;
-use nodeget_lib::utils::compare_uuid;
-use sea_orm::DatabaseConnection;
-use std::net::SocketAddr;
+use log::info;
 use std::str::FromStr;
-use std::sync::OnceLock;
+use tower::Service;
+
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
-use tokio::sync::OnceCell;
-use tower::Service;
+
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -34,21 +27,23 @@ static GLOBAL: Jemalloc = Jemalloc;
 mod db_connection;
 mod entity;
 mod rpc;
+mod terminal;
 
-static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
-static SERVER_CONFIG: OnceLock<ServerConfig> = OnceLock::new();
+static DB: tokio::sync::OnceCell<sea_orm::DatabaseConnection> = tokio::sync::OnceCell::const_new();
+static SERVER_CONFIG: std::sync::OnceLock<nodeget_lib::config::server::ServerConfig> =
+    std::sync::OnceLock::new();
 
 #[tokio::main]
 async fn main() {
     println!("Starting nodeget-server");
 
     // Config Parse
-    let config = ServerConfig::get_and_parse_config("./config.toml")
+    let config = nodeget_lib::config::server::ServerConfig::get_and_parse_config("./config.toml")
         .await
         .unwrap();
 
     // Log init
-    simple_logger::init_with_level(Level::from_str(&config.log_level).unwrap()).unwrap();
+    simple_logger::init_with_level(log::Level::from_str(&config.log_level).unwrap()).unwrap();
 
     // Jemalloc Mem Debug
     #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
@@ -76,7 +71,7 @@ async fn main() {
     });
 
     // 对比 Uuid，发送警告
-    let _ = compare_uuid(config.server_uuid);
+    let _ = nodeget_lib::utils::compare_uuid(config.server_uuid);
 
     info!("Starting nodeget-server with config: {config:?}");
 
@@ -84,9 +79,13 @@ async fn main() {
     SERVER_CONFIG.set(config.clone()).unwrap();
 
     // 连接数据库
-    init_db_connection().await;
+    db_connection::init_db_connection().await;
 
-    let task_manager = TaskManager::new();
+    let task_manager = rpc::task::TaskManager::new();
+    let terminal_state = terminal::TerminalState {
+        sessions: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+    };
+
     let mut rpc_module = rpc::nodeget::NodegetServerRpcImpl.into_rpc();
     rpc_module
         .merge(rpc::agent::AgentRpcImpl.into_rpc())
@@ -100,9 +99,9 @@ async fn main() {
         )
         .unwrap();
 
-    let (stop_handle, _server_handle) = stop_channel();
+    let (stop_handle, _server_handle) = jsonrpsee::server::stop_channel();
 
-    let jsonrpc_service = Server::builder()
+    let jsonrpc_service = jsonrpsee::server::Server::builder()
         .set_config(
             jsonrpsee::server::ServerConfig::builder()
                 .max_response_body_size(u32::MAX)
@@ -112,14 +111,18 @@ async fn main() {
         .to_service_builder()
         .build(rpc_module, stop_handle);
 
-    let app = Router::new().fallback(any(move |req: axum::extract::Request| {
-        let mut rpc_service = jsonrpc_service.clone();
-        async move { rpc_service.call(req).await.unwrap() }
-    }));
+    let app = axum::Router::new()
+        .route("/terminal", any(terminal::terminal_ws_handler))
+        .with_state(terminal_state)
+        .fallback(any(move |req: axum::extract::Request| {
+            let mut rpc_service = jsonrpc_service.clone();
+            async move { rpc_service.call(req).await.unwrap() }
+        }));
 
-    let listener = tokio::net::TcpListener::bind(config.ws_listener.parse::<SocketAddr>().unwrap())
-        .await
-        .unwrap();
+    let listener =
+        tokio::net::TcpListener::bind(config.ws_listener.parse::<std::net::SocketAddr>().unwrap())
+            .await
+            .unwrap();
 
     axum::serve(listener, app).await.unwrap();
 }
