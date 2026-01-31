@@ -7,7 +7,6 @@ use nodeget_lib::utils::get_local_timestamp_ms;
 use std::time::Duration;
 use tokio::time;
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
-use url::Url;
 
 mod execute;
 mod ip;
@@ -99,12 +98,15 @@ pub async fn handle_task() {
                             TaskEventType::WebShell(url) => {
                                 if server.allow_web_shell.unwrap_or(false) {
                                     let task_id = json_rpc.params.result.task_id;
-                                    let task_token = json_rpc.params.result.task_token.clone();
 
-                                    let url = pty::parse_url(url, task_id, task_token);
+                                    let url = pty::parse_url(
+                                        url,
+                                        task_id,
+                                        &json_rpc.params.result.task_token,
+                                    );
 
                                     match pty::handle_pty_url(url).await {
-                                        Ok(_) => Ok(TaskEventResult::WebShell(true)),
+                                        Ok(()) => Ok(TaskEventResult::WebShell(true)),
                                         Err(e) => Err(e),
                                     }
                                 } else {

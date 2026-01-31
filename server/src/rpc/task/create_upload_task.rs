@@ -9,20 +9,17 @@ use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
 use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, Set};
 use serde_json::{Value, json};
-use url::Url;
 use uuid::Uuid;
-use crate::SERVER_CONFIG;
 
 pub async fn create_task(
     manager: &TaskManager,
     _token: String,
     target_uuid: Uuid,
-    mut task_type: TaskEventType,
+    task_type: TaskEventType,
 ) -> Value {
     let process_logic = async {
         let db = TaskRpcImpl::get_db().map_err(|e| (e.0 as u32, e.1))?;
         let token = generate_random_string(10);
-        let server_config = SERVER_CONFIG.get().ok_or((107, "Config not found".to_string()))?;
 
         let in_data = task::ActiveModel {
             id: ActiveValue::default(),
