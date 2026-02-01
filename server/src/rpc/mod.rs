@@ -6,6 +6,7 @@ use serde_json::{Value, to_value};
 pub mod agent;
 pub mod nodeget;
 pub mod task;
+pub mod token;
 
 pub trait RpcHelper {
     fn try_set_json<T: Serialize>(val: T) -> Result<ActiveValue<Value>, String> {

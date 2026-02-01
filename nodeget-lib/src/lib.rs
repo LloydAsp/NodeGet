@@ -11,5 +11,6 @@
 
 pub mod config;
 pub mod monitoring;
+pub mod permission;
 pub mod task;
 pub mod utils;
