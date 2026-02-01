@@ -12,11 +12,13 @@
 use crate::rpc::agent::RpcServer as AgentRpcServer;
 use crate::rpc::nodeget::RpcServer as NodeGetRpcServer;
 use crate::rpc::task::RpcServer as TaskRpcServer;
+use crate::rpc::token::RpcServer as TokenRpcServer;
 use axum::routing::any;
 use log::info;
 use std::str::FromStr;
 use tower::Service;
 
+use crate::token::super_token::generate_super_token;
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -28,6 +30,7 @@ mod db_connection;
 mod entity;
 mod rpc;
 mod terminal;
+mod token;
 
 static DB: tokio::sync::OnceCell<sea_orm::DatabaseConnection> = tokio::sync::OnceCell::const_new();
 static SERVER_CONFIG: std::sync::OnceLock<nodeget_lib::config::server::ServerConfig> =
@@ -81,6 +84,28 @@ async fn main() {
     // 连接数据库
     db_connection::init_db_connection().await;
 
+    // Show Super Token
+    {
+        let token = match generate_super_token().await {
+            Ok(token) => {
+                token
+            }
+            Err(e) => {
+                panic!("Failed to generate super token: {}", e);
+            }
+        };
+
+        match token {
+            Some(token) => {
+                info!("Super Token: {}", token.0);
+                info!("Root Password: {}", token.1);
+            }
+            None => {
+                info!("Super Token has been generated.");
+            }
+        }
+    }
+
     let task_manager = rpc::task::TaskManager::new();
     let terminal_state = terminal::TerminalState {
         sessions: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
@@ -97,6 +122,9 @@ async fn main() {
             }
             .into_rpc(),
         )
+        .unwrap();
+    rpc_module
+        .merge(rpc::token::TokenRpcImpl.into_rpc())
         .unwrap();
 
     let (stop_handle, _server_handle) = jsonrpsee::server::stop_channel();

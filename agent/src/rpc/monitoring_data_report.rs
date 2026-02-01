@@ -1,18 +1,18 @@
 use crate::AGENT_CONFIG;
 use crate::monitoring::impls::Monitor;
-use crate::rpc::multi_server::send_to;
-use crate::rpc::wrap_json_into_rpc_with_id_1;
-use log::{error, trace};
+use crate::rpc::multi_server::{send_to, subscribe_to};
+use crate::rpc::{JsonRpcErrorMessage, wrap_json_into_rpc_with_id_1};
+use log::{error, trace, warn};
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use std::time::Duration;
+use tokio::time;
 use tokio::time::{MissedTickBehavior, interval};
-// 引入 interval 相关组件
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 
 pub async fn handle_static_monitoring_data_report() {
     let agent_config = AGENT_CONFIG.get().expect("Agent config not initialized");
 
-    let mut ticker = interval(Duration::from_mins(5));
+    let mut ticker = interval(Duration::from_mins(1));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {

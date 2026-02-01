@@ -9,9 +9,11 @@ impl MigratorTrait for Migrator {
             Box::new(m20260113_044428_create_static_monitoring::Migration),
             Box::new(m20260115_131325_create_dynamic_monitoring::Migration),
             Box::new(m20260118_030100_create_task::Migration),
+            Box::new(m20260131_112949_create_token::Migration),
         ]
     }
 }
 mod m20260113_044428_create_static_monitoring;
 mod m20260115_131325_create_dynamic_monitoring;
 mod m20260118_030100_create_task;
+mod m20260131_112949_create_token;

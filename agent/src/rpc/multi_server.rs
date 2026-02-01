@@ -7,6 +7,7 @@ use crate::rpc::wrap_json_into_rpc_with_id_1;
 use futures::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use nodeget_lib::config::agent::Server;
+use serde::Deserialize;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{OnceCell, RwLock, broadcast};
@@ -56,7 +57,20 @@ async fn connection_manager(
     mut uplink_rx: broadcast::Receiver<Message>,
     downlink_tx: broadcast::Sender<Message>,
 ) {
+    // 临时定义用于检测 JsonRpc 长连接错误
+    #[derive(Deserialize)]
+    struct JsonRpcErrorCheck {
+        error: Option<JsonRpcErrorDetail>,
+    }
+
+    #[derive(Deserialize)]
+    struct JsonRpcErrorDetail {
+        code: i64,
+        message: String,
+    }
+
     let name = &server.name;
+    let token = &server.token;
     let url = &server.ws_url;
 
     info!("[{name}] Manager task started");
@@ -78,9 +92,12 @@ async fn connection_manager(
             if server.allow_task.unwrap_or(false) {
                 let rpc = wrap_json_into_rpc_with_id_1(
                     "task_register_task",
-                    vec![serde_json::Value::String(
-                        AGENT_CONFIG.get().unwrap().agent_uuid.to_string(),
-                    )],
+                    vec![
+                        serde_json::Value::String(token.clone()),
+                        serde_json::Value::String(
+                            AGENT_CONFIG.get().unwrap().agent_uuid.to_string(),
+                        ),
+                    ],
                 );
 
                 if let Err(e) = ws_write.send(Message::Text(Utf8Bytes::from(rpc))).await {
@@ -89,7 +106,7 @@ async fn connection_manager(
                     );
                     continue;
                 }
-                debug!("[{name}] Register task listener successfully");
+                debug!("[{name}] Task register request sent.");
             }
         }
 
@@ -120,6 +137,11 @@ async fn connection_manager(
                 ws_msg_opt = ws_read.next() => {
                     match ws_msg_opt {
                         Some(Ok(msg)) => {
+                            if let Message::Text(text) = &msg
+                                && let Ok(check) = serde_json::from_str::<JsonRpcErrorCheck>(text)
+                                    && let Some(err) = check.error {
+                                        error!("[{name}] RPC Error Response: {}: {}", err.code, err.message);
+                                    }
                             let _ = downlink_tx.send(msg);
                         }
                         Some(Err(e)) => {
