@@ -2,7 +2,6 @@ use crate::entity::{dynamic_monitoring, static_monitoring};
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
 use crate::token::get::check_token_limit;
-use crate::token::parse_token_and_auth;
 use futures::StreamExt;
 use jsonrpsee::core::RpcResult;
 use log::error;
@@ -20,6 +19,7 @@ use sea_orm::{
 };
 use serde_json::Value;
 use serde_json::value::RawValue;
+use nodeget_lib::permission::token_auth::TokenOrAuth;
 
 pub async fn query_static(
     token: String,
@@ -27,7 +27,14 @@ pub async fn query_static(
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         // 鉴权
-        let (token_arg, username_arg, password_arg) = parse_token_and_auth(&token);
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => {
+                toa
+            }
+            Err(e) => {
+                return Err((101, format!("Failed to parse token: {e}")))
+            }
+        };
 
         let mut scopes = Vec::new();
         let mut has_uuid_condition = false;
@@ -57,7 +64,7 @@ pub async fn query_static(
             .collect();
 
         let is_allowed =
-            check_token_limit(token_arg, username_arg, password_arg, scopes, permissions).await?;
+            check_token_limit(&token_or_auth, scopes, permissions).await?;
 
         if !is_allowed {
             return Err((
@@ -151,7 +158,14 @@ pub async fn query_dynamic(
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         // 鉴权
-        let (token_arg, username_arg, password_arg) = parse_token_and_auth(&token);
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => {
+                toa
+            }
+            Err(e) => {
+                return Err((101, format!("Failed to parse token: {e}")))
+            }
+        };
 
         let mut scopes = Vec::new();
         let mut has_uuid_condition = false;
@@ -184,7 +198,7 @@ pub async fn query_dynamic(
             .collect();
 
         let is_allowed =
-            check_token_limit(token_arg, username_arg, password_arg, scopes, permissions).await?;
+            check_token_limit(&token_or_auth, scopes, permissions).await?;
 
         if !is_allowed {
             return Err((

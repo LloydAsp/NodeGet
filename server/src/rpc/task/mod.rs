@@ -3,7 +3,6 @@ mod query;
 
 use crate::rpc::RpcHelper;
 use crate::token::get::check_token_limit;
-use crate::token::parse_token_and_auth;
 use jsonrpsee::PendingSubscriptionSink;
 use jsonrpsee::SubscriptionMessage;
 use jsonrpsee::core::{JsonRawValue, RpcResult, SubscriptionResult};
@@ -21,6 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use uuid::Uuid;
+use nodeget_lib::permission::token_auth::TokenOrAuth;
 
 #[rpc(server, namespace = "task")]
 pub trait Rpc {
@@ -81,12 +81,21 @@ impl RpcServer for TaskRpcImpl {
         token: String,
         uuid: Uuid,
     ) -> SubscriptionResult {
-        let (token_arg, username_arg, password_arg) = parse_token_and_auth(&token);
+        let token_or_auth = if let Ok(toa) = TokenOrAuth::from_full_token(&token) {
+            toa
+        } else {
+            subscription_sink
+                .reject(jsonrpsee::types::ErrorObject::borrowed(
+                    101,
+                    "Token Parse Error",
+                    None,
+                ))
+                .await;
+            return Ok(());
+        };
 
         let is_allowed_result = check_token_limit(
-            token_arg,
-            username_arg,
-            password_arg,
+            &token_or_auth,
             vec![Scope::AgentUuid(uuid)],
             vec![Permission::Task(Task::Listen)],
         )

@@ -1,24 +1,24 @@
 use crate::token::generate_token::generate_and_store_token;
-use crate::token::split_username_password;
 use log::debug;
 use nodeget_lib::permission::create::TokenCreationRequest;
 use nodeget_lib::utils::error_message::generate_error_message;
 use serde_json::{Value, json};
+use nodeget_lib::permission::token_auth::TokenOrAuth;
 
 pub async fn create(father_token: String, token_creation: TokenCreationRequest) -> Value {
-    let (super_token_arg, super_username_arg, super_password_arg) =
-        if let Ok((u, p)) = split_username_password(&father_token) {
-            debug!("Token RPC: Detected Username|Password login");
-            (None, Some(u.to_string()), Some(p.to_string()))
-        } else {
-            debug!("Token RPC: Detected Token string login");
-            (Some(father_token), None, None)
-        };
+    let father_token_or_auth = match TokenOrAuth::from_full_token(&father_token) {
+        Ok(toa) => {
+            toa
+        }
+        Err(e) => {
+            return generate_error_message(101, &format!("Failed to parse token: {e}"))
+        }
+    };
+    
+    debug!("Token RPC: Processing token creation request");
 
     let (key, secret) = match generate_and_store_token(
-        super_token_arg,
-        super_username_arg,
-        super_password_arg,
+        &father_token_or_auth,
         token_creation.timestamp_from,
         token_creation.timestamp_to,
         token_creation.token_limit,

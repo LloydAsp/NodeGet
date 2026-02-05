@@ -2,7 +2,6 @@ use crate::entity::task;
 use crate::rpc::RpcHelper;
 use crate::rpc::task::{TaskManager, TaskRpcImpl};
 use crate::token::get::check_token_limit;
-use crate::token::parse_token_and_auth;
 use log::{debug, error};
 use nodeget_lib::permission::data_structure::{Permission, Scope, Task};
 use nodeget_lib::task::{TaskEvent, TaskEventResponse, TaskEventType};
@@ -13,6 +12,7 @@ use sea_orm::QueryFilter;
 use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, Set};
 use serde_json::{Value, json};
 use uuid::Uuid;
+use nodeget_lib::permission::token_auth::TokenOrAuth;
 
 pub async fn create_task(
     manager: &TaskManager,
@@ -31,13 +31,17 @@ pub async fn create_task(
             TaskEventType::Ip => "ip",
         };
 
-        // 解析 Token / Auth 信息
-        let (t_arg, u_arg, p_arg) = parse_token_and_auth(&token);
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => {
+                toa
+            }
+            Err(e) => {
+                return Err((101, format!("Failed to parse token: {e}")))
+            }
+        };
 
         let is_allowed = check_token_limit(
-            t_arg.clone(),
-            u_arg.clone(),
-            p_arg.clone(),
+            &token_or_auth,
             vec![Scope::AgentUuid(target_uuid)],
             vec![Permission::Task(Task::Create(task_name.to_string()))],
         )
@@ -140,12 +144,17 @@ pub async fn upload_task_result(token: String, task_response: TaskEventResponse)
             TaskEventType::Ip => "ip",
         };
 
-        let (t_arg, u_arg, p_arg) = parse_token_and_auth(&token);
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => {
+                toa
+            }
+            Err(e) => {
+                return Err((101, format!("Failed to parse token: {e}")))
+            }
+        };
 
         let is_allowed = check_token_limit(
-            t_arg.clone(),
-            u_arg.clone(),
-            p_arg.clone(),
+            &token_or_auth,
             vec![Scope::AgentUuid(task_response.agent_uuid)],
             vec![Permission::Task(Task::Write(task_name.to_string()))],
         )
@@ -190,7 +199,7 @@ pub async fn upload_task_result(token: String, task_response: TaskEventResponse)
         debug!(
             "Task [{}] result uploaded successfully by auth identifying as {:?}",
             task_response.task_id,
-            if u_arg.is_some() { &u_arg } else { &t_arg }
+            if token_or_auth.is_auth() { "Auth" } else { "Token" }
         );
 
         Ok(task_response.task_id)

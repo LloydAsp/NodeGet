@@ -2,7 +2,6 @@ use crate::entity::task;
 use crate::rpc::RpcHelper;
 use crate::rpc::task::TaskRpcImpl;
 use crate::token::get::check_token_limit;
-use crate::token::parse_token_and_auth;
 use futures::StreamExt;
 use jsonrpsee::core::RpcResult;
 use log::error;
@@ -15,11 +14,19 @@ use sea_orm::{
     ColumnTrait, DbBackend, EntityTrait, ExprTrait, Order, QueryFilter, QueryOrder, QuerySelect,
 };
 use serde_json::value::RawValue;
+use nodeget_lib::permission::token_auth::TokenOrAuth;
 
 pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         // 鉴权
-        let (token_arg, username_arg, password_arg) = parse_token_and_auth(&token);
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => {
+                toa
+            }
+            Err(e) => {
+                return Err((101, format!("Failed to parse token: {e}")))
+            }
+        };
 
         let all_task_types = [
             "ping",
@@ -62,9 +69,7 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         };
 
         let is_allowed = check_token_limit(
-            token_arg.clone(),
-            username_arg.clone(),
-            password_arg.clone(),
+            &token_or_auth,
             scopes,
             permissions,
         )
