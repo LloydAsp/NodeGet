@@ -8,8 +8,8 @@
 
 ```json
 {
-    "token": "demo_token",
-    "target_token_key": "target_token_key_to_delete"
+  "token": "demo_token",
+  "target_token_key": "target_token_key_to_delete"
 }
 ```
 
@@ -17,7 +17,7 @@
 
 ```json
 {
-    "token": "demo_token"
+  "token": "demo_token"
 }
 ```
 

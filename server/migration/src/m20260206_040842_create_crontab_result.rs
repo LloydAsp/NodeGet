@@ -41,7 +41,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(CrontabResultInDatabase::Message)
                             .string()
-                            .null()
+                            .null(),
                     )
                     .to_owned(),
             )
@@ -62,7 +62,11 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(CrontabResultInDatabase::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(CrontabResultInDatabase::Table)
+                    .to_owned(),
+            )
             .await
     }
 }

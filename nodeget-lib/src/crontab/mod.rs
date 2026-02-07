@@ -1,8 +1,8 @@
 pub mod result;
 
+use crate::task::TaskEventType;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::task::TaskEventType;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -19,13 +19,13 @@ pub struct Cron {
 #[serde(rename_all = "snake_case")]
 pub enum CronType {
     Agent(Vec<Uuid>, AgentCronType),
-    Server(ServerCronType)
+    Server(ServerCronType),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentCronType {
-    Task(TaskEventType)
+    Task(TaskEventType),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]

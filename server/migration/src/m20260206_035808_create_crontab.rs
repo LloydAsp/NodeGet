@@ -42,7 +42,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(CrontabInDatabase::LastRunTime)
                             .big_integer()
-                            .null()
+                            .null(),
                     )
                     .to_owned(),
             )

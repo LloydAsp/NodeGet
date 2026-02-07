@@ -10,7 +10,7 @@
 
 ```json
 {
-    "token": "demo_token"
+  "token": "demo_token"
 }
 ```
 

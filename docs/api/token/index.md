@@ -116,21 +116,53 @@ pub enum Crontab {
 ```json
 {
   "scopes": [
-    {"agent_uuid": "adf78235-a23c-46fc-bc85-694f64c39aaf"},
-    {"agent_uuid": "33c1b63a-35f1-4b9f-9659-66e7a3e5a75c"}
+    {
+      "agent_uuid": "adf78235-a23c-46fc-bc85-694f64c39aaf"
+    },
+    {
+      "agent_uuid": "33c1b63a-35f1-4b9f-9659-66e7a3e5a75c"
+    }
   ],
   "permissions": [
-    {"dynamic_monitoring": "write"},
-    {"static_monitoring": "write"},
-
-    {"task": "listen"},
-
-    {"task": {"write": "ping"}},
-    {"task": {"write": "tcp_ping"}},
-    {"task": {"write": "http_ping"}},
-    {"task": {"write": "web_shell"}},
-    {"task": {"write": "execute"}},
-    {"task": {"write": "ip"}}
+    {
+      "dynamic_monitoring": "write"
+    },
+    {
+      "static_monitoring": "write"
+    },
+    {
+      "task": "listen"
+    },
+    {
+      "task": {
+        "write": "ping"
+      }
+    },
+    {
+      "task": {
+        "write": "tcp_ping"
+      }
+    },
+    {
+      "task": {
+        "write": "http_ping"
+      }
+    },
+    {
+      "task": {
+        "write": "web_shell"
+      }
+    },
+    {
+      "task": {
+        "write": "execute"
+      }
+    },
+    {
+      "task": {
+        "write": "ip"
+      }
+    }
   ]
 }
 ```
@@ -147,14 +179,34 @@ Task、上报目前所有 Task 任务类型 的权限
 ```json
 {
   "scopes": [
-    {"agent_uuid": "53f125b6-e7aa-447f-a27c-085a53a36462"},
-    {"agent_uuid": "3e6f227f-56e3-4ca0-a12f-04014ebeebe7"}
+    {
+      "agent_uuid": "53f125b6-e7aa-447f-a27c-085a53a36462"
+    },
+    {
+      "agent_uuid": "3e6f227f-56e3-4ca0-a12f-04014ebeebe7"
+    }
   ],
   "permissions": [
-    {"dynamic_monitoring": {"read": "cpu"}},
-    {"dynamic_monitoring": {"read": "system"}},
-    {"static_monitoring": {"read": "cpu"}},
-    {"static_monitoring": {"read": "system"}}
+    {
+      "dynamic_monitoring": {
+        "read": "cpu"
+      }
+    },
+    {
+      "dynamic_monitoring": {
+        "read": "system"
+      }
+    },
+    {
+      "static_monitoring": {
+        "read": "cpu"
+      }
+    },
+    {
+      "static_monitoring": {
+        "read": "system"
+      }
+    }
   ]
 }
 ```
@@ -170,12 +222,20 @@ Task、上报目前所有 Task 任务类型 的权限
 ```json
 {
   "scopes": [
-    {"global": null}
+    {
+      "global": null
+    }
   ],
   "permissions": [
-    {"crontab": "read"},
-    {"crontab": "write"},
-    {"crontab": "delete"}
+    {
+      "crontab": "read"
+    },
+    {
+      "crontab": "write"
+    },
+    {
+      "crontab": "delete"
+    }
   ]
 }
 ```
@@ -189,16 +249,25 @@ Task、上报目前所有 Task 任务类型 的权限
 ```json
 {
   "scopes": [
-    {"agent_uuid": "00000000-0000-0000-0000-000000000001"},
-    {"agent_uuid": "00000000-0000-0000-0000-000000000002"}
+    {
+      "agent_uuid": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "agent_uuid": "00000000-0000-0000-0000-000000000002"
+    }
   ],
   "permissions": [
-    {"crontab": "read"},
-    {"crontab": "write"}
+    {
+      "crontab": "read"
+    },
+    {
+      "crontab": "write"
+    }
   ]
 }
 ```
 
 这表示:
 
-对 UUID 为 `00000000-0000-0000-0000-000000000001` 和 `00000000-0000-0000-0000-000000000002` 的 Agent 相关的 Crontab 具有读取和写入权限。
+对 UUID 为 `00000000-0000-0000-0000-000000000001` 和 `00000000-0000-0000-0000-000000000002` 的 Agent 相关的 Crontab
+具有读取和写入权限。
