@@ -15,10 +15,6 @@ on:
       - "docs/**"
       - "README.md"
 
-concurrency:
-  group: nodeget-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
 
