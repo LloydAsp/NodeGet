@@ -9,7 +9,7 @@
     "token": "demo_token",
     "task_data_query": {
         "condition": [
-            // QueryCondition 结构体，该结构体参考 Monitoring 总览
+            // QueryCondition 结构体，该结构体参考 Task 总览
             // 该字段为 Vec<_>，可指定多个
         ]
     }

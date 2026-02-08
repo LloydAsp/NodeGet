@@ -17,6 +17,60 @@ pub mod ping;
 // PTY（伪终端）模块
 mod pty;
 
+// 检查服务器是否允许执行特定任务
+fn is_task_allowed(server: &nodeget_lib::config::agent::Server, task_type: &TaskEventType) -> bool {
+    match task_type {
+        TaskEventType::Ping(_) => server.allow_icmp_ping.unwrap_or(false),
+        TaskEventType::TcpPing(_) => server.allow_tcp_ping.unwrap_or(false),
+        TaskEventType::HttpPing(_) => server.allow_http_ping.unwrap_or(false),
+        TaskEventType::WebShell(_) => server.allow_web_shell.unwrap_or(false),
+        TaskEventType::Execute(_) => server.allow_execute.unwrap_or(false),
+        TaskEventType::Ip => server.allow_ip.unwrap_or(false),
+    }
+}
+
+// 执行具体任务
+async fn execute_task(
+    task_type: &TaskEventType,
+    task_id: u64,
+    task_token: &str,
+) -> Result<TaskEventResult, String> {
+    match task_type {
+        TaskEventType::Ping(target) => ping::icmp::ping_target(target.clone())
+            .await
+            .map(|d| task_type.result_from_duration(d))
+            .map_err(|e| e),
+
+        TaskEventType::TcpPing(target) => ping::tcp::tcping_target(target.clone())
+            .await
+            .map(|d| task_type.result_from_duration(d))
+            .map_err(|e| e),
+
+        TaskEventType::HttpPing(target) => ping::http::httping_target(target.clone())
+            .await
+            .map(|d| task_type.result_from_duration(d))
+            .map_err(|e| e),
+
+        TaskEventType::WebShell(url) => {
+            let url = pty::parse_url(url.clone(), task_id, task_token);
+            pty::handle_pty_url(url)
+                .await
+                .map(|_| TaskEventResult::WebShell(true))
+                .map_err(|e| e)
+        }
+
+        TaskEventType::Execute(command) => execute::execute_command(command.clone())
+            .await
+            .map(TaskEventResult::Execute)
+            .map_err(|e| e),
+
+        TaskEventType::Ip => {
+            let ip_info = ip::ip().await;
+            Ok(TaskEventResult::Ip(ip_info.ipv4, ip_info.ipv6))
+        }
+    }
+}
+
 // 处理来自服务器的任务请求
 //
 // 该函数订阅各个服务器的任务通道，接收并执行不同类型的任务（如 Ping、TCP Ping、HTTP Ping、WebShell、命令执行、IP 查询），
@@ -45,99 +99,34 @@ pub async fn handle_task() {
             while let Ok(message) = rx.recv().await {
                 let server_name = server.name.clone();
                 let server_token = server.token.clone();
+                let server_config = server.clone();
                 tokio::spawn(async move {
                     let rpc = match message {
                         Message::Text(text) => text.to_string(),
-                        _ => {
-                            return;
-                        }
+                        _ => return,
                     };
 
                     let json_rpc: JsonRpcTask = match serde_json::from_str(&rpc) {
                         Ok(json_rpc) => json_rpc,
-                        Err(_) => {
-                            return;
-                        }
+                        Err(_) => return,
                     };
 
                     if json_rpc.method != "task_register_task" {
                         return;
                     }
 
-                    let task_result: Result<TaskEventResult, String> =
-                        match json_rpc.params.result.task_event_type {
-                            TaskEventType::Ping(target) => {
-                                if server.allow_icmp_ping.unwrap_or(false) {
-                                    match ping::icmp::ping_target(target).await {
-                                        Ok(duration) => {
-                                            Ok(TaskEventResult::Ping(duration.as_millis_f64()))
-                                        }
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                            TaskEventType::TcpPing(target) => {
-                                if server.allow_tcp_ping.unwrap_or(false) {
-                                    match ping::tcp::tcping_target(target).await {
-                                        Ok(duration) => {
-                                            Ok(TaskEventResult::Ping(duration.as_millis_f64()))
-                                        }
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                            TaskEventType::HttpPing(target) => {
-                                if server.allow_http_ping.unwrap_or(false) {
-                                    match ping::http::httping_target(target).await {
-                                        Ok(duration) => {
-                                            Ok(TaskEventResult::Ping(duration.as_millis_f64()))
-                                        }
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                            TaskEventType::WebShell(url) => {
-                                if server.allow_web_shell.unwrap_or(false) {
-                                    let task_id = json_rpc.params.result.task_id;
-                                    let url = pty::parse_url(
-                                        url,
-                                        task_id,
-                                        &json_rpc.params.result.task_token,
-                                    );
+                    let task_type = &json_rpc.params.result.task_event_type;
 
-                                    match pty::handle_pty_url(url).await {
-                                        Ok(()) => Ok(TaskEventResult::WebShell(true)),
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                            TaskEventType::Execute(command) => {
-                                if server.allow_execute.unwrap_or(false) {
-                                    match execute::execute_command(command).await {
-                                        Ok(output) => Ok(TaskEventResult::Execute(output)),
-                                        Err(e) => Err(e),
-                                    }
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                            TaskEventType::Ip => {
-                                if server.allow_ip.unwrap_or(false) {
-                                    let ip_info = ip::ip().await;
-                                    Ok(TaskEventResult::Ip(ip_info.ipv4, ip_info.ipv6))
-                                } else {
-                                    Err("102: Permission Denied".to_string())
-                                }
-                            }
-                        };
+                    let task_result = if is_task_allowed(&server_config, task_type) {
+                        execute_task(
+                            task_type,
+                            json_rpc.params.result.task_id,
+                            &json_rpc.params.result.task_token,
+                        )
+                        .await
+                    } else {
+                        Err("102: Permission Denied".to_string())
+                    };
 
                     let response = match task_result {
                         Ok(task_result) => TaskEventResponse {
@@ -168,8 +157,7 @@ pub async fn handle_task() {
                         ],
                     );
 
-                    if let Err(e) = send_to(&server_name, Message::Text(Utf8Bytes::from(rpc))).await
-                    {
+                    if let Err(e) = send_to(&server_name, Message::Text(Utf8Bytes::from(rpc))).await {
                         error!("{e}");
                     }
                 });

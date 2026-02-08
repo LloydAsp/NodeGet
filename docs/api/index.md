@@ -8,6 +8,7 @@ outline: deep
 
 ## 功能模块
 
+- [Nodeget](./nodeget/index.md)
 - [Token](./token/index.md)
 - [Monitoring](./monitoring/index.md)
 - [Task](./task/index.md)

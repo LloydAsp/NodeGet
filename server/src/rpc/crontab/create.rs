@@ -3,15 +3,14 @@ use crate::rpc::RpcHelper;
 use crate::rpc::crontab::CrontabRpcImpl;
 use crate::token::get::check_token_limit;
 use cron::Schedule;
+use jsonrpsee::core::RpcResult;
 use nodeget_lib::crontab::{AgentCronType, CronType};
 use nodeget_lib::permission::data_structure::{
     Crontab as CrontabPermission, Permission, Scope, Task,
 };
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use nodeget_lib::task::TaskEventType;
-use nodeget_lib::utils::error_message::generate_error_message;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Set};
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 use std::str::FromStr;
 
 pub async fn create(
@@ -19,7 +18,7 @@ pub async fn create(
     name: String,
     cron_expression: String,
     cron_type: CronType,
-) -> Value {
+) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         if let Err(e) = Schedule::from_str(&cron_expression) {
             return Err((101, format!("Invalid cron expression: {e}")));
@@ -46,15 +45,9 @@ pub async fn create(
 
                 match agent_cron_type {
                     AgentCronType::Task(task_event_type) => {
-                        let task_name = match task_event_type {
-                            TaskEventType::Ping(_) => "ping",
-                            TaskEventType::TcpPing(_) => "tcp_ping",
-                            TaskEventType::HttpPing(_) => "http_ping",
-                            TaskEventType::WebShell(_) => "web_shell",
-                            TaskEventType::Execute(_) => "execute",
-                            TaskEventType::Ip => "ip",
-                        };
-                        permissions.push(Permission::Task(Task::Create(task_name.to_string())));
+                        permissions.push(Permission::Task(Task::Create(
+                            task_event_type.task_name().to_string(),
+                        )));
                     }
                 }
             }
@@ -82,7 +75,6 @@ pub async fn create(
         let cron_type_json = CrontabRpcImpl::try_set_json(&cron_type).map_err(|e| (101, e))?;
 
         let res_id = if let Some(model) = existing_job {
-            // 更新现有任务
             let mut active_model: crontab::ActiveModel = model.into();
             active_model.cron_expression = Set(cron_expression);
             active_model.cron_type = cron_type_json;
@@ -94,27 +86,28 @@ pub async fn create(
                 .map_err(|e| (103, e.to_string()))?;
             updated.id
         } else {
-            // 创建新任务
             let new_model = crontab::ActiveModel {
                 id: ActiveValue::NotSet,
                 name: Set(name),
-                enable: Set(true),
                 cron_expression: Set(cron_expression),
                 cron_type: cron_type_json,
+                enable: Set(true),
                 last_run_time: Set(None),
             };
-            let inserted = crontab::Entity::insert(new_model)
-                .exec(db)
+
+            let inserted = new_model
+                .insert(db)
                 .await
                 .map_err(|e| (103, e.to_string()))?;
-            inserted.last_insert_id
+            inserted.id
         };
 
-        Ok(res_id)
+        let json_str = format!("{{\"id\":{}}}", res_id);
+        RawValue::from_string(json_str)
+            .map_err(|e| (101, e.to_string()))
     };
 
-    match process_logic.await {
-        Ok(id) => json!({ "id": id }),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
 }

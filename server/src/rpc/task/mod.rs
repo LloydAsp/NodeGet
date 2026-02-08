@@ -11,7 +11,6 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::task::query::TaskDataQuery;
 use nodeget_lib::task::{TaskEvent, TaskEventResponse, TaskEventType};
 use nodeget_lib::utils::JsonError;
-use serde_json::Value;
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -33,10 +32,14 @@ pub trait Rpc {
         token: String,
         target_uuid: Uuid,
         task_type: TaskEventType,
-    ) -> Value;
+    ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "upload_task_result")]
-    async fn upload_task_result(&self, token: String, task_response: TaskEventResponse) -> Value;
+    async fn upload_task_result(
+        &self,
+        token: String,
+        task_response: TaskEventResponse,
+    ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "query")]
     async fn query(
@@ -59,11 +62,15 @@ impl RpcServer for TaskRpcImpl {
         token: String,
         target_uuid: Uuid,
         task_type: TaskEventType,
-    ) -> Value {
+    ) -> RpcResult<Box<RawValue>> {
         create_task::create_task(&self.manager, token, target_uuid, task_type).await
     }
 
-    async fn upload_task_result(&self, token: String, task_response: TaskEventResponse) -> Value {
+    async fn upload_task_result(
+        &self,
+        token: String,
+        task_response: TaskEventResponse,
+    ) -> RpcResult<Box<RawValue>> {
         upload_task_result::upload_task_result(token, task_response).await
     }
 
@@ -201,15 +208,16 @@ impl TaskManager {
         }
     }
 
-    pub async fn send_event(&self, uuid: Uuid, event: TaskEvent) -> Result<(), (u32, String)> {
+    pub async fn send_event(&self, uuid: Uuid, event: TaskEvent) -> Result<(), (i32, String)> {
         let peers = self.peers.read().await;
 
         if let Some((_, tx)) = peers.get(&uuid) {
             tx.send(event)
                 .await
-                .map_err(|_| (104, "Error sending event".to_string()))
+                .map_err(|e| (103, format!("Failed to send task event: {e}")))?;
+            Ok(())
         } else {
-            Err((106, "Uuid not found".to_string()))
+            Err((104, format!("Agent {uuid} is not connected")))
         }
     }
 }

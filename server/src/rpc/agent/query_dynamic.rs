@@ -47,17 +47,7 @@ pub async fn query_dynamic(
         let permissions: Vec<Permission> = dynamic_data_query
             .fields
             .iter()
-            .map(|field| {
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(match field {
-                    DynamicDataQueryField::Cpu => DynamicDataQueryField::Cpu,
-                    DynamicDataQueryField::Ram => DynamicDataQueryField::Ram,
-                    DynamicDataQueryField::Load => DynamicDataQueryField::Load,
-                    DynamicDataQueryField::System => DynamicDataQueryField::System,
-                    DynamicDataQueryField::Disk => DynamicDataQueryField::Disk,
-                    DynamicDataQueryField::Network => DynamicDataQueryField::Network,
-                    DynamicDataQueryField::Gpu => DynamicDataQueryField::Gpu,
-                }))
-            })
+            .map(|field| Permission::DynamicMonitoring(DynamicMonitoring::Read(*field)))
             .collect();
 
         let is_allowed = check_token_limit(&token_or_auth, scopes, permissions).await?;
@@ -130,15 +120,11 @@ pub async fn query_dynamic(
             query.order_by(dynamic_monitoring::Column::Timestamp, Order::Asc)
         };
 
-        let field_mappings = [
-            ("cpu_data", "cpu"),
-            ("ram_data", "ram"),
-            ("load_data", "load"),
-            ("system_data", "system"),
-            ("disk_data", "disk"),
-            ("network_data", "network"),
-            ("gpu_data", "gpu"),
-        ];
+        let field_mappings: Vec<(&str, &str)> = dynamic_data_query
+            .fields
+            .iter()
+            .map(|f| (f.column_name(), f.json_key()))
+            .collect();
 
         execute_query(
             db,

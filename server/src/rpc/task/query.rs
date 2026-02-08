@@ -16,17 +16,8 @@ use sea_orm::{
 };
 use serde_json::value::RawValue;
 
-// 查询任务数据
-//
-// # 参数
-// * `token` - 认证令牌
-// * `task_data_query` - 任务数据查询条件
-//
-// # 返回值
-// 返回查询结果的原始 JSON 值，包含 Vec<TaskResponseItem> 格式的任务数据
 pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        // 鉴权
         let token_or_auth = match TokenOrAuth::from_full_token(&token) {
             Ok(toa) => toa,
             Err(e) => return Err((101, format!("Failed to parse token: {e}"))),
@@ -130,13 +121,11 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                 }
                 TaskQueryCondition::Type(type_key) => {
                     if db.get_database_backend() == DbBackend::Postgres {
-                        // Postgres 优化：使用 JSONB 操作符
                         query = query.filter(
                             Expr::col(task::Column::TaskEventType)
                                 .binary(BinOper::Custom("?"), type_key),
                         );
                     } else {
-                        // SQLite / 其他，转文本并匹配
                         let pattern = format!("%\"{type_key}\":%");
                         query = query.filter(
                             Expr::col(task::Column::TaskEventType)
@@ -157,10 +146,9 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         }
 
         if is_last {
-            // Last
             query = query
-                .order_by(task::Column::Timestamp, Order::Desc) // 主要按时间
-                .order_by(task::Column::Id, Order::Desc) // 时间相同时按 ID
+                .order_by(task::Column::Timestamp, Order::Desc)
+                .order_by(task::Column::Id, Order::Desc)
                 .limit(1);
         } else if let Some(l) = limit_count {
             query = query
@@ -168,7 +156,6 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                 .order_by(task::Column::Id, Order::Desc)
                 .limit(l);
         } else {
-            // 时间正序
             query = query
                 .order_by(task::Column::Timestamp, Order::Asc)
                 .order_by(task::Column::Id, Order::Asc);
@@ -188,11 +175,8 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         while let Some(item_res) = stream.next().await {
             match item_res {
                 Ok(mut v) => {
-                    // 数据库是 id, struct 是 task_id
                     if let Some(obj) = v.as_object_mut() {
                         rename_key(obj, "id", "task_id");
-
-                        // --- 修复 SQLite JSON 字符串问题 ---
                         try_parse_json_field(obj, "task_event_type");
                         try_parse_json_field(obj, "task_event_result");
                     }
@@ -222,7 +206,6 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
             (101, "UTF8 conversion error".to_string())
         })?;
 
-        // 零拷贝封装
         let raw_value = RawValue::from_string(json_string).map_err(|e| {
             error!("RawValue creation error: {e}");
             (101, "RawValue creation error".to_string())

@@ -2,14 +2,14 @@ use crate::entity::task;
 use crate::rpc::RpcHelper;
 use crate::rpc::task::TaskManager;
 use crate::token::get::check_token_limit;
+use jsonrpsee::core::RpcResult;
 use log::{debug, error};
 use nodeget_lib::permission::data_structure::{Permission, Scope, Task};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::task::{TaskEvent, TaskEventType};
-use nodeget_lib::utils::error_message::generate_error_message;
 use nodeget_lib::utils::generate_random_string;
 use sea_orm::{ActiveValue, EntityTrait, Set};
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -18,16 +18,9 @@ pub async fn create_task(
     token: String,
     target_uuid: Uuid,
     task_type: TaskEventType,
-) -> Value {
+) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        let task_name = match &task_type {
-            TaskEventType::Ping(_) => "ping",
-            TaskEventType::TcpPing(_) => "tcp_ping",
-            TaskEventType::HttpPing(_) => "http_ping",
-            TaskEventType::WebShell(_) => "web_shell",
-            TaskEventType::Execute(_) => "execute",
-            TaskEventType::Ip => "ip",
-        };
+        let task_name = task_type.task_name();
 
         let token_or_auth = match TokenOrAuth::from_full_token(&token) {
             Ok(toa) => toa,
@@ -82,7 +75,11 @@ pub async fn create_task(
         };
 
         match manager.send_event(target_uuid, task).await {
-            Ok(()) => Ok(task_id),
+            Ok(()) => {
+                let json_str = format!("{{\"id\":{}}}", task_id);
+                RawValue::from_string(json_str)
+                    .map_err(|e| (101, e.to_string()))
+            }
             Err(e) => {
                 let _ = task::Entity::delete_by_id(task_id)
                     .exec(db)
@@ -97,8 +94,7 @@ pub async fn create_task(
         }
     };
 
-    match process_logic.await {
-        Ok(new_id) => json!({ "id": new_id }),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
 }

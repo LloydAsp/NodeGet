@@ -47,13 +47,7 @@ pub async fn query_static(
         let permissions: Vec<Permission> = static_data_query
             .fields
             .iter()
-            .map(|field| {
-                Permission::StaticMonitoring(StaticMonitoring::Read(match field {
-                    StaticDataQueryField::Cpu => StaticDataQueryField::Cpu,
-                    StaticDataQueryField::System => StaticDataQueryField::System,
-                    StaticDataQueryField::Gpu => StaticDataQueryField::Gpu,
-                }))
-            })
+            .map(|field| Permission::StaticMonitoring(StaticMonitoring::Read(*field)))
             .collect();
 
         let is_allowed = check_token_limit(&token_or_auth, scopes, permissions).await?;
@@ -122,11 +116,11 @@ pub async fn query_static(
             query.order_by(static_monitoring::Column::Timestamp, Order::Asc)
         };
 
-        let field_mappings = [
-            ("cpu_data", "cpu"),
-            ("system_data", "system"),
-            ("gpu_data", "gpu"),
-        ];
+        let field_mappings: Vec<(&str, &str)> = static_data_query
+            .fields
+            .iter()
+            .map(|f| (f.column_name(), f.json_key()))
+            .collect();
 
         execute_query(
             db,

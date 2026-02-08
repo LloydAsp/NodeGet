@@ -4,7 +4,7 @@
 
 ## 写入方法
 
-`metadata_get` 是用于写入的方法，需要提供:
+`metadata_write` 是用于写入的方法，需要提供:
 
 - `token`: 具有对应权限的 Token
 - `metadata`: 写入的 Metadata，基本类型为 `Metadata 总览` 中的结构体

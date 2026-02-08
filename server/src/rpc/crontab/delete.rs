@@ -1,12 +1,12 @@
 use crate::crontab::delete_crontab_by_name;
 use crate::token::get::get_token;
+use jsonrpsee::core::RpcResult;
 use nodeget_lib::permission::data_structure::{Crontab as CrontabPermission, Permission};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use nodeget_lib::utils::error_message::generate_error_message;
 use nodeget_lib::utils::get_local_timestamp_ms;
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 
-pub async fn delete(token: String, name: String) -> Value {
+pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let token_or_auth = match TokenOrAuth::from_full_token(&token) {
             Ok(toa) => toa,
@@ -29,7 +29,6 @@ pub async fn delete(token: String, name: String) -> Value {
             return Err((102, "Token has expired".to_string()));
         }
 
-        // 检查用户是否有 Crontab::Delete 权限
         let has_crontab_delete_permission = token_info.token_limit.iter().any(|limit| {
             limit
                 .permissions
@@ -48,14 +47,12 @@ pub async fn delete(token: String, name: String) -> Value {
             .await
             .map_err(|e| (103, e.to_string()))?;
 
-        if deleted {
-            Ok(json!({"success": true, "message": "Crontab deleted successfully"}))
-        } else {
-            Ok(json!({"success": false, "message": "Crontab not found"}))
-        }
+        let json_str = format!("{{\"success\":{}}}", deleted);
+        RawValue::from_string(json_str)
+            .map_err(|e| (101, e.to_string()))
     };
 
     process_logic
         .await
-        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
 }

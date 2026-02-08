@@ -1,19 +1,69 @@
 use crate::DB;
 use crate::entity::crontab;
 use crate::token::get::get_token;
+use jsonrpsee::core::RpcResult;
 use nodeget_lib::crontab::{Cron, CronType};
 use nodeget_lib::permission::data_structure::{
     Crontab as CrontabPermission, Permission, Scope, Token,
 };
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use nodeget_lib::utils::error_message::generate_error_message;
 use nodeget_lib::utils::get_local_timestamp_ms;
 use sea_orm::{DbErr, EntityTrait, RuntimeErr};
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> Result<Vec<Cron>, DbErr> {
+pub async fn get(token: String) -> RpcResult<Box<RawValue>> {
+    let process_logic = async {
+        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
+            Ok(toa) => toa,
+            Err(e) => return Err((101, format!("Failed to parse token: {e}"))),
+        };
+
+        let token_info = get_token(&token_or_auth).await?;
+
+        let now = get_local_timestamp_ms().cast_signed();
+
+        if let Some(from) = token_info.timestamp_from
+            && now < from
+        {
+            return Err((102, "Token is not yet valid".to_string()));
+        }
+
+        if let Some(to) = token_info.timestamp_to
+            && now > to
+        {
+            return Err((102, "Token has expired".to_string()));
+        }
+
+        let has_crontab_read_permission = token_info.token_limit.iter().any(|limit| {
+            limit
+                .permissions
+                .iter()
+                .any(|perm| matches!(perm, Permission::Crontab(CrontabPermission::Read)))
+        });
+
+        if !has_crontab_read_permission {
+            return Err((
+                102,
+                "Permission Denied: Insufficient Crontab Read permission".to_string(),
+            ));
+        }
+
+        let crontabs = extract_allowed_uuids(&token_info).await?;
+        let json_str = serde_json::to_string(&crontabs)
+            .map_err(|e| (101, format!("Failed to serialize crontabs: {e}")))?;
+
+        RawValue::from_string(json_str)
+            .map_err(|e| (101, e.to_string()))
+    };
+
+    process_logic
+        .await
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
+}
+
+async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> Result<Vec<Cron>, DbErr> {
     let db = DB.get().ok_or(DbErr::Conn(RuntimeErr::Internal(
         "DB not initialized".to_string(),
     )))?;
@@ -32,7 +82,6 @@ pub async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> Result<Vec<Cron>, DbErr>
 
             let should_include = match &cron_type {
                 CronType::Agent(agent_uuids, _) => {
-                    // 检查 crontab 中的 agent_uuids 是否与传入的 uuid_set 有任何交集
                     agent_uuids.iter().any(|uuid| uuid_set.contains(uuid))
                 }
                 CronType::Server(_) => false,
@@ -56,7 +105,7 @@ pub async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> Result<Vec<Cron>, DbErr>
     Ok(crons)
 }
 
-pub async fn get_all_crontabs() -> Result<Vec<Cron>, DbErr> {
+async fn get_all_crontabs() -> Result<Vec<Cron>, DbErr> {
     let db = DB.get().ok_or(DbErr::Conn(RuntimeErr::Internal(
         "DB not initialized".to_string(),
     )))?;
@@ -82,56 +131,6 @@ pub async fn get_all_crontabs() -> Result<Vec<Cron>, DbErr> {
         .collect();
 
     Ok(crons)
-}
-
-pub async fn get(token: String) -> Value {
-    let process_logic = async {
-        let token_or_auth = match TokenOrAuth::from_full_token(&token) {
-            Ok(toa) => toa,
-            Err(e) => return Err((101, format!("Failed to parse token: {e}"))),
-        };
-
-        let token_info = get_token(&token_or_auth).await?;
-
-        let now = get_local_timestamp_ms().cast_signed();
-
-        if let Some(from) = token_info.timestamp_from
-            && now < from
-        {
-            return Err((102, "Token is not yet valid".to_string()));
-        }
-
-        if let Some(to) = token_info.timestamp_to
-            && now > to
-        {
-            return Err((102, "Token has expired".to_string()));
-        }
-
-        // 检查用户是否有 Crontab::Read 权限
-        let has_crontab_read_permission = token_info.token_limit.iter().any(|limit| {
-            limit
-                .permissions
-                .iter()
-                .any(|perm| matches!(perm, Permission::Crontab(CrontabPermission::Read)))
-        });
-
-        if !has_crontab_read_permission {
-            return Err((
-                102,
-                "Permission Denied: Insufficient Crontab Read permission".to_string(),
-            ));
-        }
-
-        let crontabs = extract_allowed_uuids(&token_info).await?;
-
-        let crontabs_json = json!(crontabs);
-
-        Ok(crontabs_json)
-    };
-
-    process_logic
-        .await
-        .unwrap_or_else(|(code, msg)| generate_error_message(code, &msg))
 }
 
 async fn extract_allowed_uuids(token_info: &Token) -> Result<Vec<Cron>, (i64, String)> {

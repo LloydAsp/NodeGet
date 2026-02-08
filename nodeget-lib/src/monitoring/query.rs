@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // 静态监控数据查询字段枚举，定义可查询的静态数据类型
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum StaticDataQueryField {
     // CPU 相关信息
@@ -13,8 +13,28 @@ pub enum StaticDataQueryField {
     Gpu,
 }
 
+impl StaticDataQueryField {
+    /// 获取字段对应的数据库列名
+    pub fn column_name(&self) -> &'static str {
+        match self {
+            StaticDataQueryField::Cpu => "cpu_data",
+            StaticDataQueryField::System => "system_data",
+            StaticDataQueryField::Gpu => "gpu_data",
+        }
+    }
+
+    /// 获取字段的 JSON 键名
+    pub fn json_key(&self) -> &'static str {
+        match self {
+            StaticDataQueryField::Cpu => "cpu",
+            StaticDataQueryField::System => "system",
+            StaticDataQueryField::Gpu => "gpu",
+        }
+    }
+}
+
 // 动态监控数据查询字段枚举，定义可查询的动态数据类型
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum DynamicDataQueryField {
     // CPU 相关信息
@@ -31,6 +51,34 @@ pub enum DynamicDataQueryField {
     Network,
     // GPU 相关信息
     Gpu,
+}
+
+impl DynamicDataQueryField {
+    /// 获取字段对应的数据库列名
+    pub fn column_name(&self) -> &'static str {
+        match self {
+            DynamicDataQueryField::Cpu => "cpu_data",
+            DynamicDataQueryField::Ram => "ram_data",
+            DynamicDataQueryField::Load => "load_data",
+            DynamicDataQueryField::System => "system_data",
+            DynamicDataQueryField::Disk => "disk_data",
+            DynamicDataQueryField::Network => "network_data",
+            DynamicDataQueryField::Gpu => "gpu_data",
+        }
+    }
+
+    /// 获取字段的 JSON 键名
+    pub fn json_key(&self) -> &'static str {
+        match self {
+            DynamicDataQueryField::Cpu => "cpu",
+            DynamicDataQueryField::Ram => "ram",
+            DynamicDataQueryField::Load => "load",
+            DynamicDataQueryField::System => "system",
+            DynamicDataQueryField::Disk => "disk",
+            DynamicDataQueryField::Network => "network",
+            DynamicDataQueryField::Gpu => "gpu",
+        }
+    }
 }
 
 // 查询条件枚举，定义各种查询过滤条件

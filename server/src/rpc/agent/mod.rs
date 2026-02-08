@@ -3,7 +3,6 @@ use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use nodeget_lib::monitoring::query::{DynamicDataQuery, StaticDataQuery};
-use serde_json::Value;
 use serde_json::value::RawValue;
 
 mod query_dynamic;
@@ -18,14 +17,14 @@ pub trait Rpc {
         &self,
         token: String,
         static_monitoring_data: StaticMonitoringData,
-    ) -> Value;
+    ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "report_dynamic")]
     async fn report_dynamic(
         &self,
         token: String,
         dynamic_monitoring_data: DynamicMonitoringData,
-    ) -> Value;
+    ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "query_static")]
     async fn query_static(
@@ -52,7 +51,7 @@ impl RpcServer for AgentRpcImpl {
         &self,
         token: String,
         static_monitoring_data: StaticMonitoringData,
-    ) -> Value {
+    ) -> RpcResult<Box<RawValue>> {
         report_static::report_static(token, static_monitoring_data).await
     }
 
@@ -60,7 +59,7 @@ impl RpcServer for AgentRpcImpl {
         &self,
         token: String,
         dynamic_monitoring_data: DynamicMonitoringData,
-    ) -> Value {
+    ) -> RpcResult<Box<RawValue>> {
         report_dynamic::report_dynamic(token, dynamic_monitoring_data).await
     }
 

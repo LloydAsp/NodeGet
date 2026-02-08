@@ -25,6 +25,23 @@ export const themeZhConfig = {
 				text: '项目框架',
 				link: '/api/framework.md'
 			},
+			// Nodeget
+			{
+				text: 'Nodeget',
+				collapsed: false,
+				items: [{
+					text: '介绍',
+					link: '/api/nodeget/index.md'
+				},
+				{
+					text: 'Hello',
+					link: '/api/nodeget/hello.md'
+				},
+				{
+					text: 'Version',
+					link: '/api/nodeget/version.md'
+				}]
+			},
 
 			// Monitoring
 			{

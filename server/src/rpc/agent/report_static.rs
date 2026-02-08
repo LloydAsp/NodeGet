@@ -2,16 +2,19 @@ use crate::entity::static_monitoring;
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
 use crate::token::get::check_token_limit;
+use jsonrpsee::core::RpcResult;
 use log::debug;
 use nodeget_lib::monitoring::data_structure::StaticMonitoringData;
 use nodeget_lib::permission::data_structure::{Permission, Scope, StaticMonitoring};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use nodeget_lib::utils::error_message::generate_error_message;
 use sea_orm::{ActiveValue, EntityTrait, Set};
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 use std::str::FromStr;
 
-pub async fn report_static(token: String, static_monitoring_data: StaticMonitoringData) -> Value {
+pub async fn report_static(
+    token: String,
+    static_monitoring_data: StaticMonitoringData,
+) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let agent_uuid = uuid::Uuid::from_str(&static_monitoring_data.uuid)
             .map_err(|e| (101, format!("Invalid UUID format: {e}")))?;
@@ -42,7 +45,6 @@ pub async fn report_static(token: String, static_monitoring_data: StaticMonitori
             id: ActiveValue::default(),
             uuid: Set(agent_uuid),
             timestamp: Set(static_monitoring_data.time.cast_signed()),
-
             cpu_data: AgentRpcImpl::try_set_json(static_monitoring_data.cpu)
                 .map_err(|e| (101, e))?,
             system_data: AgentRpcImpl::try_set_json(static_monitoring_data.system)
@@ -51,10 +53,7 @@ pub async fn report_static(token: String, static_monitoring_data: StaticMonitori
                 .map_err(|e| (101, e))?,
         };
 
-        debug!(
-            "Received static data from [{}]",
-            static_monitoring_data.uuid.clone()
-        );
+        debug!("Received static data from [{}]", static_monitoring_data.uuid);
 
         let result = static_monitoring::Entity::insert(in_data)
             .exec(db)
@@ -66,11 +65,12 @@ pub async fn report_static(token: String, static_monitoring_data: StaticMonitori
 
         debug!("Inserted static data with id [{}]", result.last_insert_id);
 
-        Ok(result.last_insert_id)
+        let json_str = format!("{{\"id\":{}}}", result.last_insert_id);
+        RawValue::from_string(json_str)
+            .map_err(|e| (101, e.to_string()))
     };
 
-    match process_logic.await {
-        Ok(new_id) => json!({ "id": new_id }),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
 }

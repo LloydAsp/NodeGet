@@ -2,19 +2,19 @@ use crate::entity::dynamic_monitoring;
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
 use crate::token::get::check_token_limit;
+use jsonrpsee::core::RpcResult;
 use log::debug;
 use nodeget_lib::monitoring::data_structure::DynamicMonitoringData;
-use nodeget_lib::permission::data_structure::{Permission, Scope};
+use nodeget_lib::permission::data_structure::{DynamicMonitoring, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use nodeget_lib::utils::error_message::generate_error_message;
 use sea_orm::{ActiveValue, EntityTrait, Set};
-use serde_json::{Value, json};
+use serde_json::value::RawValue;
 use std::str::FromStr;
 
 pub async fn report_dynamic(
     token: String,
     dynamic_monitoring_data: DynamicMonitoringData,
-) -> Value {
+) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let agent_uuid = uuid::Uuid::from_str(&dynamic_monitoring_data.uuid)
             .map_err(|e| (101, format!("Invalid UUID format: {e}")))?;
@@ -27,9 +27,7 @@ pub async fn report_dynamic(
         let is_allowed = check_token_limit(
             &token_or_auth,
             vec![Scope::AgentUuid(agent_uuid)],
-            vec![Permission::DynamicMonitoring(
-                nodeget_lib::permission::data_structure::DynamicMonitoring::Write,
-            )],
+            vec![Permission::DynamicMonitoring(DynamicMonitoring::Write)],
         )
         .await?;
 
@@ -47,7 +45,6 @@ pub async fn report_dynamic(
             id: ActiveValue::default(),
             uuid: Set(agent_uuid),
             timestamp: Set(dynamic_monitoring_data.time.cast_signed()),
-
             cpu_data: AgentRpcImpl::try_set_json(dynamic_monitoring_data.cpu)
                 .map_err(|e| (101, e))?,
             ram_data: AgentRpcImpl::try_set_json(dynamic_monitoring_data.ram)
@@ -66,7 +63,7 @@ pub async fn report_dynamic(
 
         debug!(
             "Received dynamic data from [{}]",
-            dynamic_monitoring_data.uuid.clone()
+            dynamic_monitoring_data.uuid
         );
 
         let result = dynamic_monitoring::Entity::insert(in_data)
@@ -79,11 +76,12 @@ pub async fn report_dynamic(
 
         debug!("Inserted dynamic data with id [{}]", result.last_insert_id);
 
-        Ok(result.last_insert_id)
+        let json_str = format!("{{\"id\":{}}}", result.last_insert_id);
+        RawValue::from_string(json_str)
+            .map_err(|e| (101, e.to_string()))
     };
 
-    match process_logic.await {
-        Ok(new_id) => json!({ "id": new_id }),
-        Err((code, msg)) => generate_error_message(code, &msg),
-    }
+    process_logic
+        .await
+        .map_err(|(code, msg)| jsonrpsee::types::ErrorObject::owned(code as i32, msg, None::<()>))
 }
