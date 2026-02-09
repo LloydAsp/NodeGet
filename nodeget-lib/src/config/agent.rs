@@ -7,7 +7,7 @@ use tokio::fs;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AgentConfig {
     // 日志级别
-    pub log_level: String,
+    pub log_level: Option<String>,
     // 监控数据上报间隔（毫秒）
     pub monitoring_report_interval_ms: Option<u64>,
 

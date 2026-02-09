@@ -1,3 +1,6 @@
+# Server 配置
+
+```toml
 # 日志等级，可选 trace / debug / info / warn / error，默认 info
 # 如果你正在测试或遇到问题，请至少选择 debug
 log_level = "debug"
@@ -43,3 +46,4 @@ max_lifetime_ms = 30000
 # 若是大型服务器，请务必调大该项，否则将严重影响性能
 # 若是小型服务器，保持默认即可，过大该数值可能导致内存占用激增
 max_connections = 10
+```

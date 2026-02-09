@@ -1,3 +1,6 @@
+# Agent 配置
+
+```toml
 # 日志等级，可选 trace / debug / info / warn / error，默认 info
 # 如果你正在测试或遇到问题，请至少选择 debug
 log_level = "info"
@@ -69,3 +72,4 @@ allow_ip = true
 name = "test_server2"
 token = "test_server2_token"
 ws_url = "ws://127.0.0.1:3000/"
+```

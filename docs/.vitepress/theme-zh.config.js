@@ -9,12 +9,31 @@ export const themeZhConfig = {
 		link: '/guide/quick-start'
 	},
 	{
+		text: '配置指南',
+		link: '/guide/config/index.md'
+	},
+	{
 		text: 'API',
 		link: '/api/index.md'
 	},
 	],
 
 	sidebar: {
+		'/guide/config/': [{
+			text: '配置指南',
+			items: [{
+				text: '概览',
+				link: '/guide/config/index.md'
+			},
+			{
+				text: 'Server 配置',
+				link: '/guide/config/server.md'
+			},
+			{
+				text: 'Agent 配置',
+				link: '/guide/config/agent.md'
+			}]
+		}],
 		'/api/': [{
 			text: 'API 文档',
 			items: [{
