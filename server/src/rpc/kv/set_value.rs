@@ -1,0 +1,36 @@
+use crate::kv::set_v_to_kv;
+use jsonrpsee::core::RpcResult;
+use log::debug;
+use nodeget_lib::error::NodegetError;
+use serde_json::value::RawValue;
+use serde_json::Value;
+
+pub async fn set_value(
+    _token: String,
+    namespace: String,
+    key: String,
+    value: Value,
+) -> RpcResult<Box<RawValue>> {
+    let process_logic = async {
+        debug!("KV RPC: Processing set_value request for namespace '{namespace}', key '{key}'");
+
+        set_v_to_kv(namespace, key, value).await?;
+
+        let json_str = "{\"success\":true}".to_string();
+
+        RawValue::from_string(json_str)
+            .map_err(|e| NodegetError::SerializationError(format!("{e}")).into())
+    };
+
+    match process_logic.await {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            let nodeget_err = nodeget_lib::error::anyhow_to_nodeget_error(&e);
+            Err(jsonrpsee::types::ErrorObject::owned(
+                nodeget_err.error_code() as i32,
+                format!("{nodeget_err}"),
+                None::<()>,
+            ))
+        }
+    }
+}

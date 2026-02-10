@@ -1,0 +1,34 @@
+use crate::kv::get_v_from_kv;
+use jsonrpsee::core::RpcResult;
+use log::debug;
+use nodeget_lib::error::NodegetError;
+use serde_json::value::RawValue;
+
+pub async fn get_value(_token: String, namespace: String, key: String) -> RpcResult<Box<RawValue>> {
+    let process_logic = async {
+        debug!("KV RPC: Processing get_value request for namespace '{namespace}', key '{key}'");
+
+        let value = get_v_from_kv(namespace, key).await?;
+
+        let json_str = match value {
+            Some(v) => serde_json::to_string(&v)
+                .map_err(|e| NodegetError::SerializationError(format!("Failed to serialize value: {e}")))?,
+            None => "null".to_string(),
+        };
+
+        RawValue::from_string(json_str)
+            .map_err(|e| NodegetError::SerializationError(format!("{e}")).into())
+    };
+
+    match process_logic.await {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            let nodeget_err = nodeget_lib::error::anyhow_to_nodeget_error(&e);
+            Err(jsonrpsee::types::ErrorObject::owned(
+                nodeget_err.error_code() as i32,
+                format!("{nodeget_err}"),
+                None::<()>,
+            ))
+        }
+    }
+}
