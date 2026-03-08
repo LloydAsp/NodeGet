@@ -23,9 +23,7 @@ pub async fn set_enable(token: String, name: String, enable: bool) -> RpcResult<
             .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
 
         let Some(model) = model else {
-            let json_str = "{\"success\":false,\"message\":\"Crontab not found\"}".to_owned();
-            return RawValue::from_string(json_str)
-                .map_err(|e| NodegetError::SerializationError(format!("{e}")).into());
+            return Err(NodegetError::NotFound(format!("Crontab not found: {name}")).into());
         };
 
         let cron_type = parse_cron_type(&model.cron_type, &name)?;
@@ -37,14 +35,14 @@ pub async fn set_enable(token: String, name: String, enable: bool) -> RpcResult<
         )
         .await?;
 
-        let result_state = set_crontab_enable_by_name(name, enable)
+        let result_state = set_crontab_enable_by_name(name.clone(), enable)
             .await
             .map_err(|e| NodegetError::Other(format!("Failed to set crontab enable: {e}")))?;
 
-        let json_str = result_state.map_or_else(
-            || "{\"success\":false,\"message\":\"Crontab not found\"}".to_string(),
-            |state| format!("{{\"success\":true,\"enabled\":{state}}}"),
-        );
+        let state = result_state
+            .ok_or_else(|| NodegetError::NotFound(format!("Crontab not found: {name}")))?;
+
+        let json_str = format!("{{\"success\":true,\"enabled\":{state}}}");
 
         RawValue::from_string(json_str)
             .map_err(|e| NodegetError::SerializationError(e.to_string()).into())

@@ -23,9 +23,7 @@ pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
             .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
 
         let Some(model) = model else {
-            let json_str = "{\"success\":false}".to_owned();
-            return RawValue::from_string(json_str)
-                .map_err(|e| NodegetError::SerializationError(format!("{e}")).into());
+            return Err(NodegetError::NotFound(format!("Crontab not found: {name}")).into());
         };
 
         let cron_type = parse_cron_type(&model.cron_type, &name)?;
@@ -37,9 +35,13 @@ pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
         )
         .await?;
 
-        let deleted = delete_crontab_by_name(name)
+        let deleted = delete_crontab_by_name(name.clone())
             .await
             .map_err(|e| NodegetError::Other(format!("Failed to delete crontab: {e}")))?;
+
+        if !deleted {
+            return Err(NodegetError::NotFound(format!("Crontab not found: {name}")).into());
+        }
 
         let json_str = format!("{{\"success\":{deleted}}}");
         RawValue::from_string(json_str)

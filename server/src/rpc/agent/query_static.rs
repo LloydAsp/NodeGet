@@ -39,13 +39,30 @@ pub async fn query_static(
             scopes.push(Scope::Global);
         }
 
-        let permissions: Vec<Permission> = static_data_query
-            .fields
-            .iter()
-            .map(|field| Permission::StaticMonitoring(StaticMonitoring::Read(*field)))
-            .collect();
+        let is_allowed = if static_data_query.fields.is_empty() {
+            let mut any_allowed = false;
+            for permission in [
+                Permission::StaticMonitoring(StaticMonitoring::Read(StaticDataQueryField::Cpu)),
+                Permission::StaticMonitoring(StaticMonitoring::Read(
+                    StaticDataQueryField::System,
+                )),
+                Permission::StaticMonitoring(StaticMonitoring::Read(StaticDataQueryField::Gpu)),
+            ] {
+                if check_token_limit(&token_or_auth, scopes.clone(), vec![permission]).await? {
+                    any_allowed = true;
+                    break;
+                }
+            }
+            any_allowed
+        } else {
+            let permissions: Vec<Permission> = static_data_query
+                .fields
+                .iter()
+                .map(|field| Permission::StaticMonitoring(StaticMonitoring::Read(*field)))
+                .collect();
 
-        let is_allowed = check_token_limit(&token_or_auth, scopes, permissions).await?;
+            check_token_limit(&token_or_auth, scopes, permissions).await?
+        };
 
         if !is_allowed {
             return Err(NodegetError::PermissionDenied(

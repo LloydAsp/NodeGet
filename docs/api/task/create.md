@@ -32,7 +32,7 @@ UUID 指定的 Agent 未注册:
 
 ```json
 {
-    "error_id": 106,
-    "error_message": "Error sending task event: Uuid not found"
+    "error_id": 104,
+    "error_message": "Error sending task event: Agent AGENT_UUID_HERE is not connected"
 }
 ```

@@ -9,7 +9,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::task::{TaskEventResponse, TaskEventType};
 use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{EntityTrait, Set};
 use serde_json::Value;
 use serde_json::value::RawValue;
 
@@ -35,6 +35,13 @@ pub async fn upload_task_result(
                 )
             })?;
 
+        if task_model.success.is_some() {
+            return Err(
+                NodegetError::InvalidInput("Task result has already been uploaded".to_owned())
+                    .into(),
+            );
+        }
+
         let original_task_type: TaskEventType =
             serde_json::from_value(task_model.task_event_type.clone()).map_err(|e| {
                 NodegetError::SerializationError(format!("Failed to parse original task type: {e}"))
@@ -59,32 +66,51 @@ pub async fn upload_task_result(
             .into());
         }
 
-        let mut active_model: task::ActiveModel = task_model.into();
-
-        active_model.timestamp = Set(Some(task_response.timestamp.cast_signed()));
-        active_model.success = Set(Some(task_response.success));
-
-        active_model.error_message = Set(task_response.error_message.map(|v| {
+        let error_message = task_response.error_message.map(|v| {
             let json_v = serde_json::to_value(v).unwrap_or(Value::Null);
             match json_v {
                 Value::String(s) => s,
                 _ => format!("{json_v}"),
             }
-        }));
+        });
 
-        let result_json = task_response
+        let task_event_result = task_response
             .task_event_result
-            .map(<super::TaskRpcImpl as RpcHelper>::try_set_json)
+            .map(|result| {
+                serde_json::to_value(result).map_err(|e| {
+                    NodegetError::SerializationError(format!(
+                        "Failed to serialize task event result: {e}"
+                    ))
+                })
+            })
             .transpose()
             .map_err(|e| NodegetError::SerializationError(e.to_string()))?;
 
-        active_model.task_event_result =
-            result_json.map_or(Set(None), |active_val| Set(Some(active_val.unwrap())));
+        let update_result = task::Entity::update_many()
+            .set(task::ActiveModel {
+                timestamp: Set(Some(task_response.timestamp.cast_signed())),
+                success: Set(Some(task_response.success)),
+                error_message: Set(error_message),
+                task_event_result: Set(task_event_result),
+                ..Default::default()
+            })
+            .filter(task::Column::Id.eq(task_response.task_id.cast_signed()))
+            .filter(task::Column::Uuid.eq(task_response.agent_uuid))
+            .filter(task::Column::Token.eq(task_response.task_token.clone()))
+            .filter(task::Column::Success.is_null())
+            .exec(db)
+            .await
+            .map_err(|e| {
+                error!("Database update error: {e}");
+                NodegetError::DatabaseError(format!("Database update error: {e}"))
+            })?;
 
-        active_model.update(db).await.map_err(|e| {
-            error!("Database update error: {e}");
-            NodegetError::DatabaseError(format!("Database update error: {e}"))
-        })?;
+        if update_result.rows_affected == 0 {
+            return Err(
+                NodegetError::InvalidInput("Task result has already been uploaded".to_owned())
+                    .into(),
+            );
+        }
 
         debug!(
             "Task [{}] result uploaded successfully by auth identifying as {:?}",

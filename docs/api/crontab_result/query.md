@@ -2,8 +2,6 @@
 
 调用者可以通过 `crontab-result_query` 查询
 
-注意：该字符串是完整 JSON-RPC 方法名（`namespace = crontab-result` + `method = query`）。
-
 需要传入 `token` / `query`:
 
 ```json
