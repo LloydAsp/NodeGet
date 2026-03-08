@@ -65,6 +65,10 @@ export const themeZhConfig = {
 					link: '/api/nodeget/version.md'
 				},
 				{
+					text: 'Server UUID',
+					link: '/api/nodeget/uuid.md'
+				},
+				{
 					text: '列出所有 Agent UUID',
 					link: '/api/nodeget/list_all_agent_uuid.md'
 				}]

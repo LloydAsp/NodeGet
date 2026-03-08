@@ -1,4 +1,5 @@
 use crate::rpc::RpcHelper;
+use crate::SERVER_CONFIG;
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use log::info;
@@ -13,6 +14,9 @@ pub trait Rpc {
 
     #[method(name = "version")]
     async fn version(&self) -> Value;
+
+    #[method(name = "uuid")]
+    async fn uuid(&self) -> String;
 
     #[method(name = "list_all_agent_uuid")]
     async fn list_all_agent_uuid(&self, token: String) -> RpcResult<Box<RawValue>>;
@@ -32,6 +36,13 @@ impl RpcServer for NodegetServerRpcImpl {
     async fn version(&self) -> Value {
         info!("Version Request");
         serde_json::to_value(NodeGetVersion::get()).unwrap()
+    }
+
+    async fn uuid(&self) -> String {
+        info!("Uuid Request");
+        SERVER_CONFIG
+            .get()
+            .map_or_else(String::new, |cfg| cfg.server_uuid.to_string())
     }
 
     async fn list_all_agent_uuid(&self, token: String) -> RpcResult<Box<RawValue>> {
