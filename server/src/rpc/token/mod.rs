@@ -1,8 +1,8 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use migration::async_trait::async_trait;
-use nodeget_lib::permission::data_structure::Limit;
 use nodeget_lib::permission::create::TokenCreationRequest;
+use nodeget_lib::permission::data_structure::Limit;
 use serde_json::value::RawValue;
 
 mod create;
@@ -24,11 +24,7 @@ pub trait Rpc {
     ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "delete")]
-    async fn delete(
-        &self,
-        token: String,
-        target_token: String,
-    ) -> RpcResult<Box<RawValue>>;
+    async fn delete(&self, token: String, target_token: String) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "list_all_tokens")]
     async fn list_all_tokens(&self, token: String) -> RpcResult<Box<RawValue>>;
@@ -58,11 +54,7 @@ impl RpcServer for TokenRpcImpl {
         create::create(father_token, token_creation).await
     }
 
-    async fn delete(
-        &self,
-        token: String,
-        target_token: String,
-    ) -> RpcResult<Box<RawValue>> {
+    async fn delete(&self, token: String, target_token: String) -> RpcResult<Box<RawValue>> {
         delete::delete(token, target_token).await
     }
 

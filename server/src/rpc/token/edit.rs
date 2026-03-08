@@ -47,10 +47,10 @@ pub async fn edit(
         {
             model
         } else {
-            return Err(
-                NodegetError::NotFound(format!("Token not found by key/username: {target_token}"))
-                    .into(),
-            );
+            return Err(NodegetError::NotFound(format!(
+                "Token not found by key/username: {target_token}"
+            ))
+            .into());
         };
 
         let mut active_model: token::ActiveModel = model.into();

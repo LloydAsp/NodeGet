@@ -36,10 +36,10 @@ pub async fn upload_task_result(
             })?;
 
         if task_model.success.is_some() {
-            return Err(
-                NodegetError::InvalidInput("Task result has already been uploaded".to_owned())
-                    .into(),
-            );
+            return Err(NodegetError::InvalidInput(
+                "Task result has already been uploaded".to_owned(),
+            )
+            .into());
         }
 
         let original_task_type: TaskEventType =
@@ -106,10 +106,10 @@ pub async fn upload_task_result(
             })?;
 
         if update_result.rows_affected == 0 {
-            return Err(
-                NodegetError::InvalidInput("Task result has already been uploaded".to_owned())
-                    .into(),
-            );
+            return Err(NodegetError::InvalidInput(
+                "Task result has already been uploaded".to_owned(),
+            )
+            .into());
         }
 
         debug!(

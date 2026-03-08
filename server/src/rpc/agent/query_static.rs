@@ -43,9 +43,7 @@ pub async fn query_static(
             let mut any_allowed = false;
             for permission in [
                 Permission::StaticMonitoring(StaticMonitoring::Read(StaticDataQueryField::Cpu)),
-                Permission::StaticMonitoring(StaticMonitoring::Read(
-                    StaticDataQueryField::System,
-                )),
+                Permission::StaticMonitoring(StaticMonitoring::Read(StaticDataQueryField::System)),
                 Permission::StaticMonitoring(StaticMonitoring::Read(StaticDataQueryField::Gpu)),
             ] {
                 if check_token_limit(&token_or_auth, scopes.clone(), vec![permission]).await? {

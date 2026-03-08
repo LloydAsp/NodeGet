@@ -11,7 +11,9 @@ fn scopes_from_cron_type(cron_type: &CronType) -> anyhow::Result<Vec<Scope>> {
     let scopes = match cron_type {
         CronType::Agent(uuids, _) => {
             if uuids.is_empty() {
-                return Err(NodegetError::ParseError("Agent list cannot be empty".to_owned()).into());
+                return Err(
+                    NodegetError::ParseError("Agent list cannot be empty".to_owned()).into(),
+                );
             }
 
             uuids

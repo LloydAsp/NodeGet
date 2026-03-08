@@ -88,7 +88,9 @@ async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> anyhow::Result<Vec<Cron>> {
         let cron_type = parse_cron_type_strict(&model)?;
 
         let should_include = match &cron_type {
-            CronType::Agent(agent_uuids, _) => agent_uuids.iter().any(|uuid| uuid_set.contains(uuid)),
+            CronType::Agent(agent_uuids, _) => {
+                agent_uuids.iter().any(|uuid| uuid_set.contains(uuid))
+            }
             CronType::Server(_) => false,
         };
 

@@ -42,27 +42,17 @@ pub async fn query_dynamic(
         let is_allowed = if dynamic_data_query.fields.is_empty() {
             let mut any_allowed = false;
             for permission in [
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(
-                    DynamicDataQueryField::Cpu,
-                )),
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(
-                    DynamicDataQueryField::Ram,
-                )),
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(
-                    DynamicDataQueryField::Load,
-                )),
+                Permission::DynamicMonitoring(DynamicMonitoring::Read(DynamicDataQueryField::Cpu)),
+                Permission::DynamicMonitoring(DynamicMonitoring::Read(DynamicDataQueryField::Ram)),
+                Permission::DynamicMonitoring(DynamicMonitoring::Read(DynamicDataQueryField::Load)),
                 Permission::DynamicMonitoring(DynamicMonitoring::Read(
                     DynamicDataQueryField::System,
                 )),
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(
-                    DynamicDataQueryField::Disk,
-                )),
+                Permission::DynamicMonitoring(DynamicMonitoring::Read(DynamicDataQueryField::Disk)),
                 Permission::DynamicMonitoring(DynamicMonitoring::Read(
                     DynamicDataQueryField::Network,
                 )),
-                Permission::DynamicMonitoring(DynamicMonitoring::Read(
-                    DynamicDataQueryField::Gpu,
-                )),
+                Permission::DynamicMonitoring(DynamicMonitoring::Read(DynamicDataQueryField::Gpu)),
             ] {
                 if check_token_limit(&token_or_auth, scopes.clone(), vec![permission]).await? {
                     any_allowed = true;

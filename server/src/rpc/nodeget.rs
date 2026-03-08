@@ -1,11 +1,11 @@
-use crate::rpc::RpcHelper;
 use crate::SERVER_CONFIG;
+use crate::rpc::RpcHelper;
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use log::info;
 use nodeget_lib::utils::version::NodeGetVersion;
-use serde_json::value::RawValue;
 use serde_json::Value;
+use serde_json::value::RawValue;
 
 #[rpc(server, namespace = "nodeget-server")]
 pub trait Rpc {
@@ -80,11 +80,13 @@ mod list_all_agent_uuid {
             let scope = Scope::Global;
             let permission = Permission::NodeGet(NodeGet::ListAllAgentUuid);
 
-            let is_allowed = check_token_limit(&token_or_auth, vec![scope], vec![permission]).await?;
+            let is_allowed =
+                check_token_limit(&token_or_auth, vec![scope], vec![permission]).await?;
 
             if !is_allowed {
                 return Err(NodegetError::PermissionDenied(
-                    "Permission Denied: Insufficient NodeGet ListAllAgentUuid permissions".to_owned(),
+                    "Permission Denied: Insufficient NodeGet ListAllAgentUuid permissions"
+                        .to_owned(),
                 )
                 .into());
             }
@@ -113,9 +115,7 @@ mod list_all_agent_uuid {
         }
     }
 
-    async fn fetch_all_agent_uuids(
-        db: &sea_orm::DatabaseConnection,
-    ) -> anyhow::Result<Vec<Uuid>> {
+    async fn fetch_all_agent_uuids(db: &sea_orm::DatabaseConnection) -> anyhow::Result<Vec<Uuid>> {
         // 使用 UNION 合并三个表的查询，数据库层面去重，效率最高
         // UNION 自动去重，UNION ALL 不去重
         let sql = r"

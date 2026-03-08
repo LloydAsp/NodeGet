@@ -62,9 +62,10 @@ pub async fn delete(token: String, target_token: String) -> RpcResult<Box<RawVal
                 target_token_to_delete, delete_result_by_key.rows_affected
             )
         } else {
-            let delete_result_by_username = token::delete_token_by_username(target_token_to_delete.clone())
-                .await
-                .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
+            let delete_result_by_username =
+                token::delete_token_by_username(target_token_to_delete.clone())
+                    .await
+                    .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
 
             if delete_result_by_username.rows_affected > 0 {
                 format!(

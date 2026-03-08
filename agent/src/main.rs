@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     let log_level = config
         .log_level
         .as_ref()
-        .ok_or(NodegetError::ParseError("log_level is not set".to_owned()))?;
+        .ok_or_else(|| NodegetError::ParseError("log_level is not set".to_owned()))?;
     simple_logger::init_with_level(
         Level::from_str(log_level)
             .map_err(|e| NodegetError::ParseError(format!("Invalid log_level: {e}")))?,
@@ -83,14 +83,9 @@ async fn main() -> anyhow::Result<()> {
 
     // 初始化与多个服务器的连接
     let servers =
-        AGENT_CONFIG
-            .get()
-            .unwrap()
-            .server
-            .clone()
-            .ok_or(NodegetError::ConfigNotFound(
-                "No server configuration found".to_owned(),
-            ))?;
+        AGENT_CONFIG.get().unwrap().server.clone().ok_or_else(|| {
+            NodegetError::ConfigNotFound("No server configuration found".to_owned())
+        })?;
     rpc::multi_server::init_connections(servers);
 
     // 启动静态监控数据上报任务

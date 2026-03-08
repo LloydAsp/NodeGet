@@ -92,7 +92,7 @@ fn drop_unknown_permissions(mut token_limit_value: Value) -> Value {
     token_limit_value
 }
 
-pub(crate) fn parse_token_limit_with_compat(token_limit_value: Value) -> anyhow::Result<Vec<Limit>> {
+pub fn parse_token_limit_with_compat(token_limit_value: Value) -> anyhow::Result<Vec<Limit>> {
     match serde_json::from_value::<Vec<Limit>>(token_limit_value.clone()) {
         Ok(v) => Ok(v),
         Err(original_err) => {
