@@ -2,11 +2,16 @@ use crate::rpc::RpcHelper;
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
-use nodeget_lib::monitoring::query::{DynamicDataQuery, StaticDataQuery};
+use nodeget_lib::monitoring::query::{
+    DynamicDataQuery, DynamicDataQueryField, StaticDataQuery, StaticDataQueryField,
+};
 use serde_json::value::RawValue;
+use uuid::Uuid;
 
 mod query_dynamic;
+mod query_dynamic_multi_last;
 mod query_static;
+mod query_static_multi_last;
 mod report_dynamic;
 mod report_static;
 
@@ -38,6 +43,22 @@ pub trait Rpc {
         &self,
         token: String,
         dynamic_data_query: DynamicDataQuery,
+    ) -> RpcResult<Box<RawValue>>;
+
+    #[method(name = "static_data_multi_last_query")]
+    async fn static_data_multi_last_query(
+        &self,
+        token: String,
+        uuids: Vec<Uuid>,
+        fields: Vec<StaticDataQueryField>,
+    ) -> RpcResult<Box<RawValue>>;
+
+    #[method(name = "dynamic_data_multi_last_query")]
+    async fn dynamic_data_multi_last_query(
+        &self,
+        token: String,
+        uuids: Vec<Uuid>,
+        fields: Vec<DynamicDataQueryField>,
     ) -> RpcResult<Box<RawValue>>;
 }
 
@@ -77,5 +98,23 @@ impl RpcServer for AgentRpcImpl {
         dynamic_data_query: DynamicDataQuery,
     ) -> RpcResult<Box<RawValue>> {
         query_dynamic::query_dynamic(token, dynamic_data_query).await
+    }
+
+    async fn static_data_multi_last_query(
+        &self,
+        token: String,
+        uuids: Vec<Uuid>,
+        fields: Vec<StaticDataQueryField>,
+    ) -> RpcResult<Box<RawValue>> {
+        query_static_multi_last::static_data_multi_last_query(token, uuids, fields).await
+    }
+
+    async fn dynamic_data_multi_last_query(
+        &self,
+        token: String,
+        uuids: Vec<Uuid>,
+        fields: Vec<DynamicDataQueryField>,
+    ) -> RpcResult<Box<RawValue>> {
+        query_dynamic_multi_last::dynamic_data_multi_last_query(token, uuids, fields).await
     }
 }
