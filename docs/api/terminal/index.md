@@ -14,7 +14,7 @@ Binary Message 通信
 由 NodeGet Server 提供的，Agent 连接的 Terminal Url 格式如下:
 
 ```
-ws(s)://HOST(:PORT)/terminal?agent_uuid={agent_uuid}&task_id={task_id}&task_token={task_token}
+ws(s)://HOST(:PORT)/terminal?agent_uuid={agent_uuid}&task_id={task_id}&task_token={task_token}&terminal_id={terminal_id}
 ```
 
 参数用于校验对应的 Task
@@ -29,10 +29,14 @@ ws(s)://HOST(:PORT)/terminal?agent_uuid={agent_uuid}&task_id={task_id}&task_toke
 由 NodeGet Server 提供的，用户 连接的 Terminal Url 格式如下:
 
 ```
-ws(s)://HOST(:PORT)/terminal?agent_uuid={agent_uuid}&token=demo_token
+ws(s)://HOST(:PORT)/terminal?agent_uuid={agent_uuid}&terminal_id={terminal_id}&token=demo_token
 ```
 
 用户在 Agent 连接后，可以与 Agent 进行双向 WebSocket 通信
+
+`terminal_id` 必须与创建 `web_shell` Task 时提交的 `terminal_id` 一致。
+
+同一个 Agent 下，若本地已经存在相同 `terminal_id` 的终端连接，Agent 会拒绝新任务并上报任务错误，避免会话互相覆盖。
 
 ## 注意事项
 

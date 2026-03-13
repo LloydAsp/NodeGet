@@ -22,7 +22,7 @@
 <body>
 
 <div id="controls">
-    <input type="text" id="wsurl" placeholder="ws://host:port/terminal?agent_uuid=xxx&token=xxx" value="">
+    <input type="text" id="wsurl" placeholder="ws://host:port/terminal?agent_uuid=xxx&terminal_id=xxx&token=xxx" value="">
     <button id="connect-btn">连接终端</button>
 </div>
 <div id="terminal-container"></div>

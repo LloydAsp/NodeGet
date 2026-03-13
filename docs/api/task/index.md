@@ -27,10 +27,15 @@ pub enum TaskEventType {
     TcpPing(String),    // 可能为域名，需解析
     HttpPing(url::Url), // Url, Method, Body
 
-    WebShell(url::Url), // Websocket URL
+    WebShell(WebShellTask), // Websocket URL + terminal_id
     Execute(String),    // 命令执行
 
     Ip,
+}
+
+pub struct WebShellTask {
+    pub url: url::Url,
+    pub terminal_id: uuid::Uuid,
 }
 ```
 
@@ -47,6 +52,13 @@ pub enum TaskEventType {
 
 {
     "http_ping": "https://1.1.1.1/"
+}
+
+{
+    "web_shell": {
+        "url": "wss://example.com/auto_gen",
+        "terminal_id": "4c8d1cba-244e-4baf-9b65-c881f86ca60a"
+    }
 }
 
 {

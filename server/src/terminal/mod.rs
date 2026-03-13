@@ -14,13 +14,20 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
+use uuid::Uuid;
 
 // 终端状态结构体，管理 Agent 和 User 之间的会话
-// Key 是 agent_uuid
+// Key 是 (agent_uuid, terminal_id)
 #[derive(Clone)]
 pub struct TerminalState {
     // 存储终端会话的并发安全映射
-    pub sessions: Arc<RwLock<HashMap<String, SessionSlots>>>,
+    pub sessions: Arc<RwLock<HashMap<TerminalSessionKey, SessionSlots>>>,
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct TerminalSessionKey {
+    pub agent_uuid: String,
+    pub terminal_id: Uuid,
 }
 
 // 会话槽位结构，Agent 连接时创建，User 连接时取走需要的部分
@@ -45,6 +52,7 @@ pub struct TerminalParams {
 
     pub task_id: Option<u64>,       // 任务ID
     pub task_token: Option<String>, // Task Token
+    pub terminal_id: Option<Uuid>,  // 终端连接 ID
 
     pub token: Option<String>,
 }
@@ -73,11 +81,35 @@ pub async fn terminal_ws_handler(
 // * `params` - 终端参数
 // * `state` - 终端状态
 async fn handle_socket(socket: WebSocket, params: TerminalParams, state: TerminalState) {
+    let TerminalParams {
+        agent_uuid,
+        task_id,
+        task_token,
+        terminal_id,
+        token,
+    } = params;
+
     // 有 task_token 的是 Agent，否则是 User
-    if let (Some(task_token), Some(id)) = (params.task_token, params.task_id) {
-        handle_agent(socket, params.agent_uuid, task_token, id, state).await;
+    if let (Some(task_token), Some(id)) = (task_token, task_id) {
+        if let Some(terminal_id) = terminal_id {
+            handle_agent(socket, agent_uuid, terminal_id, task_token, id, state).await;
+        } else {
+            reject_with_error(
+                socket,
+                108,
+                "Invalid Input: Missing terminal_id for agent terminal connection",
+            )
+            .await;
+        }
     } else {
-        handle_user(socket, params.agent_uuid, params.token, state).await;
+        handle_user(
+            socket,
+            agent_uuid,
+            terminal_id,
+            token,
+            state,
+        )
+        .await;
     }
 }
 
@@ -92,6 +124,7 @@ async fn handle_socket(socket: WebSocket, params: TerminalParams, state: Termina
 async fn handle_agent(
     mut socket: WebSocket,
     agent_uuid: String,
+    terminal_id: Uuid,
     task_token: String,
     id: u64,
     state: TerminalState,
@@ -125,7 +158,14 @@ async fn handle_agent(
         }
     }
 
-    info!("Agent connecting terminal: {agent_uuid}");
+    let session_key = TerminalSessionKey {
+        agent_uuid: agent_uuid.clone(),
+        terminal_id,
+    };
+
+    info!(
+        "Agent connecting terminal: agent_uuid={agent_uuid}, terminal_id={terminal_id}"
+    );
 
     // User -> Agent
     let (tx_to_agent, mut rx_from_user) = mpsc::unbounded_channel::<Message>();
@@ -135,8 +175,23 @@ async fn handle_agent(
     // 存入 Map
     {
         let mut sessions = state.sessions.write().await;
+        if sessions.contains_key(&session_key) {
+            let error_json = generate_error_message(
+                108,
+                &format!(
+                    "Invalid Input: terminal_id '{terminal_id}' is already active for this agent"
+                ),
+            );
+            if let Err(e) = socket
+                .send(Message::Text(Utf8Bytes::from(error_json.to_string())))
+                .await
+            {
+                error!("Failed to send error message to agent: {e}");
+            }
+            return;
+        }
         sessions.insert(
-            agent_uuid.clone(),
+            session_key.clone(),
             SessionSlots {
                 tx_to_agent,                        // User 将会获取这个 Sender 发送数据给 Agent
                 rx_from_agent: Some(rx_from_agent), // User 将会拿走这个 Receiver 接收 Agent 的数据
@@ -172,11 +227,11 @@ async fn handle_agent(
     // 清理 Map
     {
         let mut sessions = state.sessions.write().await;
-        if sessions.contains_key(&agent_uuid) {
-            sessions.remove(&agent_uuid);
+        if sessions.contains_key(&session_key) {
+            sessions.remove(&session_key);
         }
     }
-    info!("Agent terminal disconnected: {agent_uuid}");
+    info!("Agent terminal disconnected: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
 }
 
 // 处理 User 连接
@@ -187,12 +242,23 @@ async fn handle_agent(
 // * `token` - 用户令牌
 // * `state` - 终端状态
 async fn handle_user(
-    socket: WebSocket,
+    mut socket: WebSocket,
     agent_uuid: String,
+    terminal_id: Option<Uuid>,
     token: Option<String>,
     state: TerminalState,
 ) {
-    info!("User connecting terminal to: {agent_uuid}");
+    let Some(terminal_id) = terminal_id else {
+        warn!("User connection rejected: missing terminal_id");
+        let error_json =
+            generate_error_message(108, "Invalid Input: Missing terminal_id for user terminal connection");
+        let _ = socket
+            .send(Message::Text(Utf8Bytes::from(error_json.to_string())))
+            .await;
+        return;
+    };
+
+    info!("User connecting terminal to: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
 
     // 检查 token 是否存在
     let Some(token) = token else {
@@ -208,16 +274,22 @@ async fn handle_user(
 
     // 获取会话槽位
     let (tx_to_agent, rx_from_agent) = {
+        let session_key = TerminalSessionKey {
+            agent_uuid: agent_uuid.clone(),
+            terminal_id,
+        };
         let mut sessions = state.sessions.write().await;
-        if let Some(slots) = sessions.get_mut(&agent_uuid) {
+        if let Some(slots) = sessions.get_mut(&session_key) {
             if let Some(rx) = slots.rx_from_agent.take() {
                 (slots.tx_to_agent.clone(), rx)
             } else {
-                warn!("Agent {agent_uuid} is already busy (session active)");
+                warn!("Terminal session already has an attached user: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
                 return;
             }
         } else {
-            warn!("Agent {agent_uuid} terminal session not found (Agent not connected?)");
+            warn!(
+                "Terminal session not found: agent_uuid={agent_uuid}, terminal_id={terminal_id}"
+            );
             return;
         }
     };
@@ -246,5 +318,15 @@ async fn handle_user(
         _ = send_task => {},
     }
 
-    info!("User terminal disconnected: {agent_uuid}");
+    info!("User terminal disconnected: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
+}
+
+async fn reject_with_error(mut socket: WebSocket, error_id: i32, message: &str) {
+    let error_json = generate_error_message(error_id, message);
+    if let Err(e) = socket
+        .send(Message::Text(Utf8Bytes::from(error_json.to_string())))
+        .await
+    {
+        error!("Failed to send terminal error message: {e}");
+    }
 }

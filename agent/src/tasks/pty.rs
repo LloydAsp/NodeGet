@@ -4,10 +4,14 @@ use log::{error, info};
 use nodeget_lib::error::NodegetError;
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Write};
-use std::sync::{Arc, Mutex};
-use tokio::{sync::mpsc, task};
+use std::sync::{Arc, Mutex, OnceLock};
+use tokio::{
+    sync::{RwLock, mpsc},
+    task,
+};
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::{WebSocketStream, connect_async, tungstenite::protocol::Message};
 use url::Url;
@@ -15,16 +19,46 @@ use url::Url;
 /// PTY 结果类型
 pub type Result<T> = std::result::Result<T, NodegetError>;
 
+type TerminalConnectionPool = Arc<RwLock<HashSet<String>>>;
+
+static TERMINAL_CONNECTION_POOL: OnceLock<TerminalConnectionPool> = OnceLock::new();
+
+fn terminal_connection_pool() -> &'static TerminalConnectionPool {
+    TERMINAL_CONNECTION_POOL.get_or_init(|| Arc::new(RwLock::new(HashSet::new())))
+}
+
+async fn reserve_terminal_id(terminal_id: &str) -> Result<()> {
+    let pool = terminal_connection_pool();
+    let mut guard = pool.write().await;
+    if guard.contains(terminal_id) {
+        return Err(NodegetError::InvalidInput(format!(
+            "Terminal ID '{terminal_id}' is already connected"
+        )));
+    }
+    guard.insert(terminal_id.to_owned());
+    Ok(())
+}
+
+async fn release_terminal_id(terminal_id: &str) {
+    let pool = terminal_connection_pool();
+    let mut guard = pool.write().await;
+    guard.remove(terminal_id);
+}
+
 // 处理 PTY（伪终端）URL
 //
 // 该函数连接到指定的 WebSocket URL，并启动 PTY 会话
 //
 // # 参数
 // * `url` - WebSocket URL，包装在 Result 中
+// * `terminal_id` - 终端连接 ID
 //
 // # 返回值
 // 成功时返回 Ok(())，失败时返回错误信息
-pub async fn handle_pty_url(url: std::result::Result<Url, String>) -> Result<()> {
+pub async fn handle_pty_url(
+    url: std::result::Result<Url, String>,
+    terminal_id: String,
+) -> Result<()> {
     let url = match url {
         Ok(url) => url,
         Err(e) => {
@@ -32,23 +66,32 @@ pub async fn handle_pty_url(url: std::result::Result<Url, String>) -> Result<()>
         }
     };
 
-    let Ok(ws) = connect_async(url.to_string()).await else {
-        return Err(NodegetError::AgentConnectionError(
-            "Failed to connect to WebSocket".to_owned(),
-        ));
-    };
+    reserve_terminal_id(&terminal_id).await?;
 
-    let ws_stream = ws.0;
+    let connect_result = async {
+        let Ok(ws) = connect_async(url.to_string()).await else {
+            return Err(NodegetError::AgentConnectionError(
+                "Failed to connect to WebSocket".to_owned(),
+            ));
+        };
 
-    let cmd = if cfg!(windows) {
-        "cmd.exe"
-    } else if fs::exists("/bin/bash").unwrap_or(false) {
-        "bash"
-    } else {
-        "sh"
-    };
+        let ws_stream = ws.0;
 
-    handle_pty_session(ws_stream, cmd).await
+        let cmd = if cfg!(windows) {
+            "cmd.exe"
+        } else if fs::exists("/bin/bash").unwrap_or(false) {
+            "bash"
+        } else {
+            "sh"
+        };
+
+        handle_pty_session(ws_stream, cmd).await
+    }
+    .await;
+
+    release_terminal_id(&terminal_id).await;
+
+    connect_result
 }
 
 // 处理 PTY 会话
@@ -248,16 +291,22 @@ fn handle_ws_message(
 // * `url` - 原始 URL
 // * `task_id` - 任务 ID
 // * `task_token` - 任务令牌
+// * `terminal_id` - 终端连接 ID
 //
 // # 返回值
 // 成功时返回解析后的 URL，失败时返回错误信息
-pub fn parse_url(url: Url, task_id: u64, task_token: &str) -> std::result::Result<Url, String> {
+pub fn parse_url(
+    url: Url,
+    task_id: u64,
+    task_token: &str,
+    terminal_id: &str,
+) -> std::result::Result<Url, String> {
     let scheme = url.scheme();
     if !((scheme == "ws") || (scheme == "wss")) {
         return Err(format!("Invalid scheme: {scheme}"));
     }
 
-    let url = if url.path() == "/auto_gen" {
+    let mut url = if url.path() == "/auto_gen" {
         let agent_uuid = AGENT_CONFIG
             .get()
             .ok_or("Agent Config 未初始化")?
@@ -270,11 +319,30 @@ pub fn parse_url(url: Url, task_id: u64, task_token: &str) -> std::result::Resul
             .ok_or_else(|| format!("Invalid port: {url}"))?;
 
         let url = format!(
-            "{scheme}://{host}:{port}/terminal?agent_uuid={agent_uuid}&task_id={task_id}&task_token={task_token}"
+            "{scheme}://{host}:{port}/terminal?agent_uuid={agent_uuid}&task_id={task_id}&task_token={task_token}&terminal_id={terminal_id}"
         );
         Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?
     } else {
         url
     };
+
+    set_or_replace_query_param(&mut url, "terminal_id", terminal_id);
     Ok(url)
+}
+
+fn set_or_replace_query_param(url: &mut Url, key: &str, value: &str) {
+    let pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .into_owned()
+        .filter(|(k, _)| k != key)
+        .collect();
+
+    {
+        let mut serializer = url.query_pairs_mut();
+        serializer.clear();
+        for (k, v) in pairs {
+            serializer.append_pair(&k, &v);
+        }
+        serializer.append_pair(key, value);
+    }
 }

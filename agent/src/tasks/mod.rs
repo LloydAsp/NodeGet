@@ -55,9 +55,15 @@ async fn execute_task(
             .map(|d| task_type.result_from_duration(d))
             .map_err(|e| NodegetError::Other(format!("{e}")).into()),
 
-        TaskEventType::WebShell(url) => {
-            let url = pty::parse_url(url.clone(), task_id, task_token);
-            pty::handle_pty_url(url)
+        TaskEventType::WebShell(web_shell) => {
+            let terminal_id = web_shell.terminal_id.to_string();
+            let url = pty::parse_url(
+                web_shell.url.clone(),
+                task_id,
+                task_token,
+                &terminal_id,
+            );
+            pty::handle_pty_url(url, terminal_id)
                 .await
                 .map(|()| TaskEventResult::WebShell(true))
                 .map_err(|e| NodegetError::Other(format!("{e}")).into())

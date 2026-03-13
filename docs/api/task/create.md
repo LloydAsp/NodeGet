@@ -24,6 +24,21 @@
 }
 ```
 
+当 `task_type` 为 `web_shell` 时，必须携带 `terminal_id`（随机 UUID）。例如：
+
+```json
+{
+    "token": "demo_token",
+    "target_uuid": "AGENT_UUID_HERE",
+    "task_type": {
+        "web_shell": {
+            "url": "wss://YOUR_SERVER/auto_gen",
+            "terminal_id": "4c8d1cba-244e-4baf-9b65-c881f86ca60a"
+        }
+    }
+}
+```
+
 ## Error
 
 该方法可能返回错误

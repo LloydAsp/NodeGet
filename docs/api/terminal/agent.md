@@ -5,6 +5,8 @@
 
 ## 处理内容
 
+Agent 在处理 `web_shell` 任务时，会收到 `terminal_id` 字段。需要以该 ID 维护本地终端连接池，同一时刻不允许重复 ID。
+
 Agent 需要处理来自 用户(而不是 Server) 发送的心跳包、Resize 请求，以及最重要的数据
 
 心跳包与 Resize 均通过 文本 类型发送

@@ -6,6 +6,15 @@ use serde::{Deserialize, Serialize};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
+// WebShell 任务参数
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct WebShellTask {
+    // WebSocket URL
+    pub url: url::Url,
+    // 终端连接 ID（由任务创建方生成的随机 UUID）
+    pub terminal_id: uuid::Uuid,
+}
+
 // 任务事件类型枚举，定义各种可执行的任务类型
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -17,8 +26,8 @@ pub enum TaskEventType {
     // HTTP Ping 任务，使用 URL
     HttpPing(url::Url), // Url
 
-    // Web Shell 任务，使用 WebSocket URL
-    WebShell(url::Url), // Websocket URL
+    // Web Shell 任务
+    WebShell(WebShellTask),
     // 命令执行任务
     Execute(String), // 命令执行
 
