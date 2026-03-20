@@ -65,6 +65,13 @@
 4. `system` 字段仅保留 `process_count` 的平均值。
 5. `disk` / `network` / `gpu` 字段中无法平均的子项将返回 `null`。
 
+限制说明：
+
+1. `agent_query_static_avg`
+2. `agent_query_dynamic_avg`
+
+这两个方法当前仅支持 PostgreSQL。
+
 ## 批量获取多个 Agent 的最新数据
 
 为了便于直接查询多个 Agent 的最新一条监控数据，新增了两个方法：

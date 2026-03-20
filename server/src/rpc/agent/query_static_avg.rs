@@ -1,9 +1,6 @@
-use crate::entity::static_monitoring;
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
-use crate::rpc::agent::avg_utils::{JsonAverageAccumulator, ProcessCountAverageAccumulator};
 use crate::token::get::check_token_limit;
-use futures::StreamExt;
 use jsonrpsee::core::RpcResult;
 use log::error;
 use nodeget_lib::error::NodegetError;
@@ -11,92 +8,13 @@ use nodeget_lib::monitoring::query::{StaticDataAvgQuery, StaticDataQueryField};
 use nodeget_lib::permission::data_structure::{Permission, Scope, StaticMonitoring};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::error_message::anyhow_error_to_raw;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, QueryFilter,
-    QueryOrder, QuerySelect,
-};
+use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
 use serde_json::value::RawValue;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 #[derive(Debug, FromQueryResult)]
-struct TimeRange {
-    min_timestamp: Option<i64>,
-    max_timestamp: Option<i64>,
-}
-
-enum FieldAverageAccumulator {
-    Generic(JsonAverageAccumulator),
-    SystemProcessCount(ProcessCountAverageAccumulator),
-}
-
-impl FieldAverageAccumulator {
-    fn for_field(field: StaticDataQueryField) -> Self {
-        match field {
-            StaticDataQueryField::System => {
-                Self::SystemProcessCount(ProcessCountAverageAccumulator::default())
-            }
-            StaticDataQueryField::Cpu | StaticDataQueryField::Gpu => {
-                Self::Generic(JsonAverageAccumulator::default())
-            }
-        }
-    }
-
-    fn add(&mut self, value: &Value) {
-        match self {
-            Self::Generic(acc) => acc.add(value),
-            Self::SystemProcessCount(acc) => acc.add(value),
-        }
-    }
-
-    fn finalize(&self) -> Value {
-        match self {
-            Self::Generic(acc) => acc.finalize(),
-            Self::SystemProcessCount(acc) => acc.finalize(),
-        }
-    }
-}
-
-struct BucketAccumulator {
-    timestamp_sum: i128,
-    row_count: u64,
-    fields: Vec<FieldAverageAccumulator>,
-}
-
-impl BucketAccumulator {
-    fn new(selected_fields: &[StaticDataQueryField]) -> Self {
-        Self {
-            timestamp_sum: 0,
-            row_count: 0,
-            fields: selected_fields
-                .iter()
-                .map(|field| FieldAverageAccumulator::for_field(*field))
-                .collect(),
-        }
-    }
-
-    fn add_row(&mut self, timestamp: i64, row_obj: &Map<String, Value>, selected_fields: &[StaticDataQueryField]) {
-        self.timestamp_sum += i128::from(timestamp);
-        self.row_count += 1;
-
-        for (index, field) in selected_fields.iter().enumerate() {
-            if let Some(value) = row_obj.get(field.column_name()) {
-                self.fields[index].add(value);
-            }
-        }
-    }
-
-    fn into_json(self, uuid: &str, selected_fields: &[StaticDataQueryField]) -> Value {
-        let mut result = Map::new();
-        result.insert("uuid".to_owned(), Value::String(uuid.to_owned()));
-        let avg_timestamp = (self.timestamp_sum / i128::from(self.row_count)) as i64;
-        result.insert("timestamp".to_owned(), Value::from(avg_timestamp));
-
-        for (index, field) in selected_fields.iter().enumerate() {
-            result.insert(field.json_key().to_owned(), self.fields[index].finalize());
-        }
-
-        Value::Object(result)
-    }
+struct JsonAggRow {
+    data: Value,
 }
 
 pub async fn query_static_avg(
@@ -130,85 +48,8 @@ pub async fn query_static_avg(
         }
 
         let db = AgentRpcImpl::get_db()?;
-        let (min_timestamp, max_timestamp) = query_time_range(&db, &static_data_avg_query).await?;
-        let Some(min_timestamp) = min_timestamp else {
-            return RawValue::from_string("[]".to_owned())
-                .map_err(|e| NodegetError::SerializationError(e.to_string()).into());
-        };
-        let max_timestamp = max_timestamp.unwrap_or(min_timestamp);
-
-        let points = static_data_avg_query.points as usize;
-        let mut buckets: Vec<Option<BucketAccumulator>> = (0..points).map(|_| None).collect();
-        let mut query = static_monitoring::Entity::find()
-            .select_only()
-            .column(static_monitoring::Column::Timestamp)
-            .filter(static_monitoring::Column::Uuid.eq(static_data_avg_query.uuid));
-
-        if let Some(start) = static_data_avg_query.timestamp_from {
-            query = query.filter(static_monitoring::Column::Timestamp.gte(start));
-        }
-        if let Some(end) = static_data_avg_query.timestamp_to {
-            query = query.filter(static_monitoring::Column::Timestamp.lte(end));
-        }
-
-        for field in &static_data_avg_query.fields {
-            query = match field {
-                StaticDataQueryField::Cpu => query.column(static_monitoring::Column::CpuData),
-                StaticDataQueryField::System => query.column(static_monitoring::Column::SystemData),
-                StaticDataQueryField::Gpu => query.column(static_monitoring::Column::GpuData),
-            };
-        }
-
-        let mut stream = query
-            .order_by(static_monitoring::Column::Timestamp, Order::Asc)
-            .into_json()
-            .stream(db)
-            .await
-            .map_err(|e| {
-                error!("Database query error: {e}");
-                NodegetError::DatabaseError(format!("Database query error: {e}"))
-            })?;
-
-        while let Some(item_res) = stream.next().await {
-            let value = item_res.map_err(|e| {
-                error!("Stream read error: {e}");
-                NodegetError::DatabaseError(format!("Stream read error: {e}"))
-            })?;
-
-            let Some(obj) = value.as_object() else {
-                continue;
-            };
-            let Some(timestamp) = obj.get("timestamp").and_then(Value::as_i64) else {
-                continue;
-            };
-
-            let bucket_index = calc_bucket_index(
-                timestamp,
-                min_timestamp,
-                max_timestamp,
-                static_data_avg_query.points,
-            );
-
-            if buckets[bucket_index].is_none() {
-                buckets[bucket_index] = Some(BucketAccumulator::new(&static_data_avg_query.fields));
-            }
-
-            if let Some(bucket) = buckets[bucket_index].as_mut() {
-                bucket.add_row(timestamp, obj, &static_data_avg_query.fields);
-            }
-        }
-
-        let uuid = static_data_avg_query.uuid.to_string();
-        let rows: Vec<Value> = buckets
-            .into_iter()
-            .flatten()
-            .map(|bucket| bucket.into_json(&uuid, &static_data_avg_query.fields))
-            .collect();
-
-        let json = serde_json::to_string(&rows)
-            .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
-        RawValue::from_string(json)
-            .map_err(|e| NodegetError::SerializationError(format!("RawValue creation error: {e}")).into())
+        ensure_postgres_backend(&db)?;
+        query_static_avg_postgres(&db, &static_data_avg_query).await
     };
 
     match process_logic.await {
@@ -250,48 +91,183 @@ fn validate_avg_query(query: &StaticDataAvgQuery) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn query_time_range(
+fn ensure_postgres_backend(db: &DatabaseConnection) -> anyhow::Result<()> {
+    if db.get_database_backend() == DatabaseBackend::Postgres {
+        return Ok(());
+    }
+
+    Err(NodegetError::InvalidInput(
+        "agent_query_static_avg currently only supports PostgreSQL; SQLite and other databases are disabled for this method"
+            .to_owned(),
+    )
+    .into())
+}
+
+async fn query_static_avg_postgres(
     db: &DatabaseConnection,
     query: &StaticDataAvgQuery,
-) -> anyhow::Result<(Option<i64>, Option<i64>)> {
-    let mut range_query = static_monitoring::Entity::find()
-        .select_only()
-        .column_as(
-            static_monitoring::Column::Timestamp.min(),
-            "min_timestamp",
+) -> anyhow::Result<Box<RawValue>> {
+    let sql = build_postgres_static_avg_sql(&query.fields);
+    let statement = Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        sql,
+        [
+            query.uuid.to_string().into(),
+            query.timestamp_from.into(),
+            query.timestamp_to.into(),
+            i64::try_from(query.points)
+                .map_err(|_| NodegetError::InvalidInput("points is too large".to_owned()))?
+                .into(),
+        ],
+    );
+
+    let row = JsonAggRow::find_by_statement(statement)
+        .one(db)
+        .await
+        .map_err(|e| {
+            error!("Failed to query static avg in postgres: {e}");
+            NodegetError::DatabaseError(format!("Failed to query static avg in postgres: {e}"))
+        })?;
+
+    let json = row.map(|r| r.data).unwrap_or(Value::Array(Vec::new()));
+    let json = serde_json::to_string(&json)
+        .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
+
+    RawValue::from_string(json)
+        .map_err(|e| NodegetError::SerializationError(format!("RawValue creation error: {e}")).into())
+}
+
+fn build_postgres_static_avg_sql(fields: &[StaticDataQueryField]) -> String {
+    let select_columns = fields
+        .iter()
+        .map(|field| format!(", {}", field.column_name()))
+        .collect::<String>();
+
+    let aggregate_columns = fields
+        .iter()
+        .map(build_postgres_static_field_aggregate_sql)
+        .collect::<Vec<_>>()
+        .join(",\n            ");
+
+    let final_json_fields = fields
+        .iter()
+        .map(|field| format!(", '{}', agg.{}", field.json_key(), field.json_key()))
+        .collect::<String>();
+
+    let aggregate_columns = if aggregate_columns.is_empty() {
+        String::new()
+    } else {
+        format!(",\n            {aggregate_columns}")
+    };
+
+    format!(
+        r#"
+WITH filtered AS MATERIALIZED (
+    SELECT timestamp{select_columns}
+    FROM static_monitoring
+    WHERE uuid = CAST($1 AS uuid)
+      AND ($2::bigint IS NULL OR timestamp >= $2)
+      AND ($3::bigint IS NULL OR timestamp <= $3)
+),
+bounds AS MATERIALIZED (
+    SELECT MIN(timestamp) AS min_ts, MAX(timestamp) AS max_ts
+    FROM filtered
+),
+bucketed AS MATERIALIZED (
+    SELECT
+        CASE
+            WHEN bounds.min_ts IS NULL THEN NULL
+            WHEN bounds.min_ts = bounds.max_ts OR $4::bigint <= 1 THEN 0
+            ELSE LEAST(
+                $4::bigint - 1,
+                ((filtered.timestamp - bounds.min_ts) * $4::bigint) / ((bounds.max_ts - bounds.min_ts) + 1)
+            )
+        END AS bucket,
+        filtered.timestamp{select_columns}
+    FROM filtered
+    CROSS JOIN bounds
+),
+agg AS (
+    SELECT
+        bucketed.bucket AS bucket,
+        AVG(bucketed.timestamp)::bigint AS timestamp{aggregate_columns}
+    FROM bucketed
+    WHERE bucketed.bucket IS NOT NULL
+    GROUP BY bucketed.bucket
+    ORDER BY bucketed.bucket
+)
+SELECT COALESCE(
+    jsonb_agg(
+        jsonb_build_object(
+            'uuid', $1::text,
+            'timestamp', agg.timestamp{final_json_fields}
         )
-        .column_as(
-            static_monitoring::Column::Timestamp.max(),
-            "max_timestamp",
-        )
-        .filter(static_monitoring::Column::Uuid.eq(query.uuid));
-
-    if let Some(start) = query.timestamp_from {
-        range_query = range_query.filter(static_monitoring::Column::Timestamp.gte(start));
-    }
-    if let Some(end) = query.timestamp_to {
-        range_query = range_query.filter(static_monitoring::Column::Timestamp.lte(end));
-    }
-
-    let range = range_query.into_model::<TimeRange>().one(db).await.map_err(|e| {
-        error!("Failed to query static avg time range: {e}");
-        NodegetError::DatabaseError(format!("Failed to query static avg time range: {e}"))
-    })?;
-
-    Ok(
-        range
-            .map(|r| (r.min_timestamp, r.max_timestamp))
-            .unwrap_or((None, None)),
+        ORDER BY agg.bucket
+    ),
+    '[]'::jsonb
+) AS data
+FROM agg
+"#
     )
 }
 
-fn calc_bucket_index(timestamp: i64, min_timestamp: i64, max_timestamp: i64, points: u64) -> usize {
-    if points <= 1 || min_timestamp >= max_timestamp {
-        return 0;
+fn build_postgres_static_field_aggregate_sql(field: &StaticDataQueryField) -> String {
+    match field {
+        StaticDataQueryField::Cpu => r#"
+jsonb_build_object(
+    'physical_cores', AVG(NULLIF(bucketed.cpu_data->>'physical_cores', '')::numeric),
+    'logical_cores', AVG(NULLIF(bucketed.cpu_data->>'logical_cores', '')::numeric),
+    'per_core',
+    (
+        SELECT COALESCE(jsonb_agg(per_core.obj ORDER BY per_core.idx), '[]'::jsonb)
+        FROM (
+            SELECT
+                arr.ord AS idx,
+                jsonb_build_object(
+                    'id', AVG(NULLIF(arr.elem->>'id', '')::numeric),
+                    'name', NULL,
+                    'vendor_id', NULL,
+                    'brand', NULL
+                ) AS obj
+            FROM bucketed AS b2
+            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.cpu_data->'per_core', '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
+            WHERE b2.bucket = bucketed.bucket
+            GROUP BY arr.ord
+        ) AS per_core
+    )
+) AS cpu"#
+            .to_owned(),
+        StaticDataQueryField::System => r#"
+jsonb_build_object(
+    'system_name', NULL,
+    'system_kernel', NULL,
+    'system_kernel_version', NULL,
+    'system_os_version', NULL,
+    'system_os_long_version', NULL,
+    'distribution_id', NULL,
+    'system_host_name', NULL,
+    'arch', NULL,
+    'virtualization', NULL
+) AS system"#
+            .to_owned(),
+        StaticDataQueryField::Gpu => r#"
+(
+    SELECT COALESCE(jsonb_agg(gpus.obj ORDER BY gpus.idx), '[]'::jsonb)
+    FROM (
+        SELECT
+            arr.ord AS idx,
+            jsonb_build_object(
+                'id', AVG(NULLIF(arr.elem->>'id', '')::numeric),
+                'name', NULL,
+                'cuda_cores', AVG(NULLIF(arr.elem->>'cuda_cores', '')::numeric),
+                'architecture', NULL
+            ) AS obj
+        FROM bucketed AS b2
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.gpu_data, '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
+        WHERE b2.bucket = bucketed.bucket
+        GROUP BY arr.ord
+    ) AS gpus
+) AS gpu"#
+            .to_owned(),
     }
-
-    let span = (i128::from(max_timestamp) - i128::from(min_timestamp)) + 1;
-    let offset = (i128::from(timestamp) - i128::from(min_timestamp)).clamp(0, span - 1);
-    let idx = (offset * i128::from(points)) / span;
-    idx.min(i128::from(points - 1)) as usize
 }

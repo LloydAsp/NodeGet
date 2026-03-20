@@ -9,7 +9,6 @@ use nodeget_lib::monitoring::query::{
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
-mod avg_utils;
 mod query_dynamic_avg;
 mod query_dynamic;
 mod query_dynamic_multi_last;

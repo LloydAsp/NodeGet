@@ -1,9 +1,6 @@
-use crate::entity::dynamic_monitoring;
 use crate::rpc::RpcHelper;
 use crate::rpc::agent::AgentRpcImpl;
-use crate::rpc::agent::avg_utils::{JsonAverageAccumulator, ProcessCountAverageAccumulator};
 use crate::token::get::check_token_limit;
-use futures::StreamExt;
 use jsonrpsee::core::RpcResult;
 use log::error;
 use nodeget_lib::error::NodegetError;
@@ -11,105 +8,13 @@ use nodeget_lib::monitoring::query::{DynamicDataAvgQuery, DynamicDataQueryField}
 use nodeget_lib::permission::data_structure::{DynamicMonitoring, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::error_message::anyhow_error_to_raw;
-use sea_orm::{
-    ColumnTrait, DatabaseBackend, DatabaseConnection, EntityTrait, FromQueryResult, Order,
-    QueryFilter, QueryOrder, QuerySelect, Statement,
-};
+use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
 use serde_json::value::RawValue;
-use serde_json::{Map, Value};
-
-#[derive(Debug, FromQueryResult)]
-struct TimeRange {
-    min_timestamp: Option<i64>,
-    max_timestamp: Option<i64>,
-}
+use serde_json::Value;
 
 #[derive(Debug, FromQueryResult)]
 struct JsonAggRow {
     data: Value,
-}
-
-enum FieldAverageAccumulator {
-    Generic(JsonAverageAccumulator),
-    SystemProcessCount(ProcessCountAverageAccumulator),
-}
-
-impl FieldAverageAccumulator {
-    fn for_field(field: DynamicDataQueryField) -> Self {
-        match field {
-            DynamicDataQueryField::System => {
-                Self::SystemProcessCount(ProcessCountAverageAccumulator::default())
-            }
-            DynamicDataQueryField::Cpu
-            | DynamicDataQueryField::Ram
-            | DynamicDataQueryField::Load
-            | DynamicDataQueryField::Disk
-            | DynamicDataQueryField::Network
-            | DynamicDataQueryField::Gpu => Self::Generic(JsonAverageAccumulator::default()),
-        }
-    }
-
-    fn add(&mut self, value: &Value) {
-        match self {
-            Self::Generic(acc) => acc.add(value),
-            Self::SystemProcessCount(acc) => acc.add(value),
-        }
-    }
-
-    fn finalize(&self) -> Value {
-        match self {
-            Self::Generic(acc) => acc.finalize(),
-            Self::SystemProcessCount(acc) => acc.finalize(),
-        }
-    }
-}
-
-struct BucketAccumulator {
-    timestamp_sum: i128,
-    row_count: u64,
-    fields: Vec<FieldAverageAccumulator>,
-}
-
-impl BucketAccumulator {
-    fn new(selected_fields: &[DynamicDataQueryField]) -> Self {
-        Self {
-            timestamp_sum: 0,
-            row_count: 0,
-            fields: selected_fields
-                .iter()
-                .map(|field| FieldAverageAccumulator::for_field(*field))
-                .collect(),
-        }
-    }
-
-    fn add_row(
-        &mut self,
-        timestamp: i64,
-        row_obj: &Map<String, Value>,
-        selected_fields: &[DynamicDataQueryField],
-    ) {
-        self.timestamp_sum += i128::from(timestamp);
-        self.row_count += 1;
-
-        for (index, field) in selected_fields.iter().enumerate() {
-            if let Some(value) = row_obj.get(field.column_name()) {
-                self.fields[index].add(value);
-            }
-        }
-    }
-
-    fn into_json(self, uuid: &str, selected_fields: &[DynamicDataQueryField]) -> Value {
-        let mut result = Map::new();
-        result.insert("uuid".to_owned(), Value::String(uuid.to_owned()));
-        let avg_timestamp = (self.timestamp_sum / i128::from(self.row_count)) as i64;
-        result.insert("timestamp".to_owned(), Value::from(avg_timestamp));
-
-        for (index, field) in selected_fields.iter().enumerate() {
-            result.insert(field.json_key().to_owned(), self.fields[index].finalize());
-        }
-
-        Value::Object(result)
-    }
 }
 
 pub async fn query_dynamic_avg(
@@ -143,95 +48,8 @@ pub async fn query_dynamic_avg(
         }
 
         let db = AgentRpcImpl::get_db()?;
-        if db.get_database_backend() == DatabaseBackend::Postgres {
-            return query_dynamic_avg_postgres(&db, &dynamic_data_avg_query).await;
-        }
-
-        let (min_timestamp, max_timestamp) = query_time_range(&db, &dynamic_data_avg_query).await?;
-        let Some(min_timestamp) = min_timestamp else {
-            return RawValue::from_string("[]".to_owned())
-                .map_err(|e| NodegetError::SerializationError(e.to_string()).into());
-        };
-        let max_timestamp = max_timestamp.unwrap_or(min_timestamp);
-
-        let points = dynamic_data_avg_query.points as usize;
-        let mut buckets: Vec<Option<BucketAccumulator>> = (0..points).map(|_| None).collect();
-        let mut query = dynamic_monitoring::Entity::find()
-            .select_only()
-            .column(dynamic_monitoring::Column::Timestamp)
-            .filter(dynamic_monitoring::Column::Uuid.eq(dynamic_data_avg_query.uuid));
-
-        if let Some(start) = dynamic_data_avg_query.timestamp_from {
-            query = query.filter(dynamic_monitoring::Column::Timestamp.gte(start));
-        }
-        if let Some(end) = dynamic_data_avg_query.timestamp_to {
-            query = query.filter(dynamic_monitoring::Column::Timestamp.lte(end));
-        }
-
-        for field in &dynamic_data_avg_query.fields {
-            query = match field {
-                DynamicDataQueryField::Cpu => query.column(dynamic_monitoring::Column::CpuData),
-                DynamicDataQueryField::Ram => query.column(dynamic_monitoring::Column::RamData),
-                DynamicDataQueryField::Load => query.column(dynamic_monitoring::Column::LoadData),
-                DynamicDataQueryField::System => query.column(dynamic_monitoring::Column::SystemData),
-                DynamicDataQueryField::Disk => query.column(dynamic_monitoring::Column::DiskData),
-                DynamicDataQueryField::Network => {
-                    query.column(dynamic_monitoring::Column::NetworkData)
-                }
-                DynamicDataQueryField::Gpu => query.column(dynamic_monitoring::Column::GpuData),
-            };
-        }
-
-        let mut stream = query
-            .order_by(dynamic_monitoring::Column::Timestamp, Order::Asc)
-            .into_json()
-            .stream(db)
-            .await
-            .map_err(|e| {
-                error!("Database query error: {e}");
-                NodegetError::DatabaseError(format!("Database query error: {e}"))
-            })?;
-
-        while let Some(item_res) = stream.next().await {
-            let value = item_res.map_err(|e| {
-                error!("Stream read error: {e}");
-                NodegetError::DatabaseError(format!("Stream read error: {e}"))
-            })?;
-
-            let Some(obj) = value.as_object() else {
-                continue;
-            };
-            let Some(timestamp) = obj.get("timestamp").and_then(Value::as_i64) else {
-                continue;
-            };
-
-            let bucket_index = calc_bucket_index(
-                timestamp,
-                min_timestamp,
-                max_timestamp,
-                dynamic_data_avg_query.points,
-            );
-
-            if buckets[bucket_index].is_none() {
-                buckets[bucket_index] = Some(BucketAccumulator::new(&dynamic_data_avg_query.fields));
-            }
-
-            if let Some(bucket) = buckets[bucket_index].as_mut() {
-                bucket.add_row(timestamp, obj, &dynamic_data_avg_query.fields);
-            }
-        }
-
-        let uuid = dynamic_data_avg_query.uuid.to_string();
-        let rows: Vec<Value> = buckets
-            .into_iter()
-            .flatten()
-            .map(|bucket| bucket.into_json(&uuid, &dynamic_data_avg_query.fields))
-            .collect();
-
-        let json = serde_json::to_string(&rows)
-            .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
-        RawValue::from_string(json)
-            .map_err(|e| NodegetError::SerializationError(format!("RawValue creation error: {e}")).into())
+        ensure_postgres_backend(&db)?;
+        query_dynamic_avg_postgres(&db, &dynamic_data_avg_query).await
     };
 
     match process_logic.await {
@@ -273,6 +91,18 @@ fn validate_avg_query(query: &DynamicDataAvgQuery) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn ensure_postgres_backend(db: &DatabaseConnection) -> anyhow::Result<()> {
+    if db.get_database_backend() == DatabaseBackend::Postgres {
+        return Ok(());
+    }
+
+    Err(NodegetError::InvalidInput(
+        "agent_query_dynamic_avg currently only supports PostgreSQL; SQLite and other databases are disabled for this method"
+            .to_owned(),
+    )
+    .into())
+}
+
 async fn query_dynamic_avg_postgres(
     db: &DatabaseConnection,
     query: &DynamicDataAvgQuery,
@@ -302,54 +132,9 @@ async fn query_dynamic_avg_postgres(
     let json = row.map(|r| r.data).unwrap_or(Value::Array(Vec::new()));
     let json = serde_json::to_string(&json)
         .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
+
     RawValue::from_string(json)
         .map_err(|e| NodegetError::SerializationError(format!("RawValue creation error: {e}")).into())
-}
-
-async fn query_time_range(
-    db: &DatabaseConnection,
-    query: &DynamicDataAvgQuery,
-) -> anyhow::Result<(Option<i64>, Option<i64>)> {
-    let mut range_query = dynamic_monitoring::Entity::find()
-        .select_only()
-        .column_as(
-            dynamic_monitoring::Column::Timestamp.min(),
-            "min_timestamp",
-        )
-        .column_as(
-            dynamic_monitoring::Column::Timestamp.max(),
-            "max_timestamp",
-        )
-        .filter(dynamic_monitoring::Column::Uuid.eq(query.uuid));
-
-    if let Some(start) = query.timestamp_from {
-        range_query = range_query.filter(dynamic_monitoring::Column::Timestamp.gte(start));
-    }
-    if let Some(end) = query.timestamp_to {
-        range_query = range_query.filter(dynamic_monitoring::Column::Timestamp.lte(end));
-    }
-
-    let range = range_query.into_model::<TimeRange>().one(db).await.map_err(|e| {
-        error!("Failed to query dynamic avg time range: {e}");
-        NodegetError::DatabaseError(format!("Failed to query dynamic avg time range: {e}"))
-    })?;
-
-    Ok(
-        range
-            .map(|r| (r.min_timestamp, r.max_timestamp))
-            .unwrap_or((None, None)),
-    )
-}
-
-fn calc_bucket_index(timestamp: i64, min_timestamp: i64, max_timestamp: i64, points: u64) -> usize {
-    if points <= 1 || min_timestamp >= max_timestamp {
-        return 0;
-    }
-
-    let span = (i128::from(max_timestamp) - i128::from(min_timestamp)) + 1;
-    let offset = (i128::from(timestamp) - i128::from(min_timestamp)).clamp(0, span - 1);
-    let idx = (offset * i128::from(points)) / span;
-    idx.min(i128::from(points - 1)) as usize
 }
 
 fn build_postgres_dynamic_avg_sql(fields: &[DynamicDataQueryField]) -> String {
@@ -437,7 +222,7 @@ jsonb_build_object(
             SELECT
                 arr.ord AS idx,
                 jsonb_build_object(
-                    'id', MIN(NULLIF(arr.elem->>'id', '')::numeric),
+                    'id', AVG(NULLIF(arr.elem->>'id', '')::numeric),
                     'cpu_usage', AVG(NULLIF(arr.elem->>'cpu_usage', '')::numeric),
                     'frequency_mhz', AVG(NULLIF(arr.elem->>'frequency_mhz', '')::numeric)
                 ) AS obj
@@ -472,32 +257,29 @@ jsonb_build_object(
 ) AS system"#
             .to_owned(),
         DynamicDataQueryField::Disk => r#"
-jsonb_build_object(
-    'items',
-    (
-        SELECT COALESCE(jsonb_agg(disks.obj ORDER BY disks.idx), '[]'::jsonb)
-        FROM (
-            SELECT
-                arr.ord AS idx,
-                jsonb_build_object(
-                    'kind', NULL,
-                    'name', NULL,
-                    'file_system', NULL,
-                    'mount_point', NULL,
-                    'total_space', AVG(NULLIF(arr.elem->>'total_space', '')::numeric),
-                    'available_space', AVG(NULLIF(arr.elem->>'available_space', '')::numeric),
-                    'is_removable', NULL,
-                    'is_read_only', NULL,
-                    'read_speed', AVG(NULLIF(arr.elem->>'read_speed', '')::numeric),
-                    'write_speed', AVG(NULLIF(arr.elem->>'write_speed', '')::numeric)
-                ) AS obj
-            FROM bucketed AS b2
-            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.disk_data, '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
-            WHERE b2.bucket = bucketed.bucket
-            GROUP BY arr.ord
-        ) AS disks
-    )
-)->'items' AS disk"#
+(
+    SELECT COALESCE(jsonb_agg(disks.obj ORDER BY disks.idx), '[]'::jsonb)
+    FROM (
+        SELECT
+            arr.ord AS idx,
+            jsonb_build_object(
+                'kind', NULL,
+                'name', NULL,
+                'file_system', NULL,
+                'mount_point', NULL,
+                'total_space', AVG(NULLIF(arr.elem->>'total_space', '')::numeric),
+                'available_space', AVG(NULLIF(arr.elem->>'available_space', '')::numeric),
+                'is_removable', NULL,
+                'is_read_only', NULL,
+                'read_speed', AVG(NULLIF(arr.elem->>'read_speed', '')::numeric),
+                'write_speed', AVG(NULLIF(arr.elem->>'write_speed', '')::numeric)
+            ) AS obj
+        FROM bucketed AS b2
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.disk_data, '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
+        WHERE b2.bucket = bucketed.bucket
+        GROUP BY arr.ord
+    ) AS disks
+) AS disk"#
             .to_owned(),
         DynamicDataQueryField::Network => r#"
 jsonb_build_object(
@@ -525,32 +307,29 @@ jsonb_build_object(
 ) AS network"#
             .to_owned(),
         DynamicDataQueryField::Gpu => r#"
-jsonb_build_object(
-    'items',
-    (
-        SELECT COALESCE(jsonb_agg(gpus.obj ORDER BY gpus.idx), '[]'::jsonb)
-        FROM (
-            SELECT
-                arr.ord AS idx,
-                jsonb_build_object(
-                    'id', MIN(NULLIF(arr.elem->>'id', '')::numeric),
-                    'used_memory', AVG(NULLIF(arr.elem->>'used_memory', '')::numeric),
-                    'total_memory', AVG(NULLIF(arr.elem->>'total_memory', '')::numeric),
-                    'graphics_clock_mhz', AVG(NULLIF(arr.elem->>'graphics_clock_mhz', '')::numeric),
-                    'sm_clock_mhz', AVG(NULLIF(arr.elem->>'sm_clock_mhz', '')::numeric),
-                    'memory_clock_mhz', AVG(NULLIF(arr.elem->>'memory_clock_mhz', '')::numeric),
-                    'video_clock_mhz', AVG(NULLIF(arr.elem->>'video_clock_mhz', '')::numeric),
-                    'utilization_gpu', AVG(NULLIF(arr.elem->>'utilization_gpu', '')::numeric),
-                    'utilization_memory', AVG(NULLIF(arr.elem->>'utilization_memory', '')::numeric),
-                    'temperature', AVG(NULLIF(arr.elem->>'temperature', '')::numeric)
-                ) AS obj
-            FROM bucketed AS b2
-            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.gpu_data, '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
-            WHERE b2.bucket = bucketed.bucket
-            GROUP BY arr.ord
-        ) AS gpus
-    )
-)->'items' AS gpu"#
+(
+    SELECT COALESCE(jsonb_agg(gpus.obj ORDER BY gpus.idx), '[]'::jsonb)
+    FROM (
+        SELECT
+            arr.ord AS idx,
+            jsonb_build_object(
+                'id', AVG(NULLIF(arr.elem->>'id', '')::numeric),
+                'used_memory', AVG(NULLIF(arr.elem->>'used_memory', '')::numeric),
+                'total_memory', AVG(NULLIF(arr.elem->>'total_memory', '')::numeric),
+                'graphics_clock_mhz', AVG(NULLIF(arr.elem->>'graphics_clock_mhz', '')::numeric),
+                'sm_clock_mhz', AVG(NULLIF(arr.elem->>'sm_clock_mhz', '')::numeric),
+                'memory_clock_mhz', AVG(NULLIF(arr.elem->>'memory_clock_mhz', '')::numeric),
+                'video_clock_mhz', AVG(NULLIF(arr.elem->>'video_clock_mhz', '')::numeric),
+                'utilization_gpu', AVG(NULLIF(arr.elem->>'utilization_gpu', '')::numeric),
+                'utilization_memory', AVG(NULLIF(arr.elem->>'utilization_memory', '')::numeric),
+                'temperature', AVG(NULLIF(arr.elem->>'temperature', '')::numeric)
+            ) AS obj
+        FROM bucketed AS b2
+        CROSS JOIN LATERAL jsonb_array_elements(COALESCE(b2.gpu_data, '[]'::jsonb)) WITH ORDINALITY AS arr(elem, ord)
+        WHERE b2.bucket = bucketed.bucket
+        GROUP BY arr.ord
+    ) AS gpus
+) AS gpu"#
             .to_owned(),
     }
 }
