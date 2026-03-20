@@ -3,13 +3,17 @@ use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use nodeget_lib::monitoring::query::{
-    DynamicDataQuery, DynamicDataQueryField, StaticDataQuery, StaticDataQueryField,
+    DynamicDataAvgQuery, DynamicDataQuery, DynamicDataQueryField, StaticDataAvgQuery,
+    StaticDataQuery, StaticDataQueryField,
 };
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
+mod avg_utils;
+mod query_dynamic_avg;
 mod query_dynamic;
 mod query_dynamic_multi_last;
+mod query_static_avg;
 mod query_static;
 mod query_static_multi_last;
 mod report_dynamic;
@@ -43,6 +47,20 @@ pub trait Rpc {
         &self,
         token: String,
         dynamic_data_query: DynamicDataQuery,
+    ) -> RpcResult<Box<RawValue>>;
+
+    #[method(name = "query_static_avg")]
+    async fn query_static_avg(
+        &self,
+        token: String,
+        static_data_avg_query: StaticDataAvgQuery,
+    ) -> RpcResult<Box<RawValue>>;
+
+    #[method(name = "query_dynamic_avg")]
+    async fn query_dynamic_avg(
+        &self,
+        token: String,
+        dynamic_data_avg_query: DynamicDataAvgQuery,
     ) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "static_data_multi_last_query")]
@@ -98,6 +116,22 @@ impl RpcServer for AgentRpcImpl {
         dynamic_data_query: DynamicDataQuery,
     ) -> RpcResult<Box<RawValue>> {
         query_dynamic::query_dynamic(token, dynamic_data_query).await
+    }
+
+    async fn query_static_avg(
+        &self,
+        token: String,
+        static_data_avg_query: StaticDataAvgQuery,
+    ) -> RpcResult<Box<RawValue>> {
+        query_static_avg::query_static_avg(token, static_data_avg_query).await
+    }
+
+    async fn query_dynamic_avg(
+        &self,
+        token: String,
+        dynamic_data_avg_query: DynamicDataAvgQuery,
+    ) -> RpcResult<Box<RawValue>> {
+        query_dynamic_avg::query_dynamic_avg(token, dynamic_data_avg_query).await
     }
 
     async fn static_data_multi_last_query(

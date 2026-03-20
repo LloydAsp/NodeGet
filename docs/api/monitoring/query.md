@@ -30,6 +30,41 @@
 ]
 ```
 
+## 分段平均查询
+
+为了直接按时间段做聚合，新增两个方法：
+
+- `agent_query_static_avg`
+- `agent_query_dynamic_avg`
+
+需要传入 `token` / `static(dynamic)_data_avg_query`:
+
+```json
+{
+    "token": "demo_token",
+    "static(dynamic)_data_avg_query": {
+        "fields": [
+            // DataQueryField 结构体，该结构体参考 Monitoring 总览
+            // 该字段为 Vec<_>，可指定多个
+        ],
+        "uuid": "AGENT_UUID",
+        "timestamp_from": 1,
+        "timestamp_to": 2,
+        "points": 100
+    }
+}
+```
+
+其中 `timestamp_from` / `timestamp_to` 可选，`points` 必须 >= 1。
+
+语义说明：
+
+1. 在筛选后的数据范围内（仅包含有数据的时间段）分成 `points` 份。
+2. 每一份内对所选字段做平均值计算并返回。
+3. 返回格式与 `agent_query_static(dynamic)` 一致：固定包含 `uuid` / `timestamp`，并包含 `fields` 指定字段。
+4. `system` 字段仅保留 `process_count` 的平均值。
+5. `disk` / `network` / `gpu` 字段中无法平均的子项将返回 `null`。
+
 ## 批量获取多个 Agent 的最新数据
 
 为了便于直接查询多个 Agent 的最新一条监控数据，新增了两个方法：

@@ -254,3 +254,41 @@ pub enum QueryCondition {
 `limit` 为 1 与 `last` 等价，在数据库层面限制查询结果，按照时间倒序排列
 
 多个条件并存时，为 `AND`，即只查询满足所有条件的数据
+
+### StaticDataAvgQuery / DynamicDataAvgQuery
+
+用于 `agent_query_static_avg` / `agent_query_dynamic_avg` 的参数结构如下：
+
+```rust
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StaticDataAvgQuery {
+    pub fields: Vec<StaticDataQueryField>,
+    pub uuid: uuid::Uuid,
+    pub timestamp_from: Option<i64>,
+    pub timestamp_to: Option<i64>,
+    pub points: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DynamicDataAvgQuery {
+    pub fields: Vec<DynamicDataQueryField>,
+    pub uuid: uuid::Uuid,
+    pub timestamp_from: Option<i64>,
+    pub timestamp_to: Option<i64>,
+    pub points: u64,
+}
+```
+
+解析示例：
+
+```json
+{
+    "fields": ["cpu", "ram", "load", "system"],
+    "uuid": "830cec66-8fc9-5c21-9e2d-2da2b2f2d3b3",
+    "timestamp_from": 1769344168646,
+    "timestamp_to": 1769347768646,
+    "points": 100
+}
+```
+
+其中 `timestamp_from` / `timestamp_to` 可省略；`points` 必须 >= 1。
