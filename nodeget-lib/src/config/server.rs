@@ -18,6 +18,9 @@ pub struct ServerConfig {
     // JSON-RPC 最大并发连接数，默认 100
     pub jsonrpc_max_connections: Option<u32>,
 
+    // JSON-RPC 耗时日志级别，默认 trace
+    pub jsonrpc_timing_log_level: Option<String>,
+
     // 数据库配置
     pub database: DatabaseConfig,
 }

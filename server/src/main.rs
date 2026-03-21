@@ -17,6 +17,7 @@ use tower::Service;
 use nodeget_lib::args_parse::server::{ServerArgs, ServerCommand};
 use crate::crontab::init_crontab_worker;
 use crate::rpc::get_modules;
+use crate::rpc_timing::{RpcTimingMiddleware, parse_rpc_timing_log_level};
 use crate::token::super_token::{generate_super_token, roll_super_token};
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
@@ -36,6 +37,7 @@ mod terminal;
 // 令牌模块，处理令牌相关功能
 mod crontab;
 mod kv;
+mod rpc_timing;
 mod token;
 
 // 全局数据库连接单例
@@ -64,7 +66,23 @@ async fn main() {
         .unwrap();
 
     // Log init
-    simple_logger::init_with_level(log::Level::from_str(&config.log_level).unwrap()).unwrap();
+    let base_log_level = log::LevelFilter::from_str(&config.log_level)
+        .unwrap_or_else(|_| panic!("Invalid log_level '{}'", config.log_level));
+    let (rpc_timing_log_level, invalid_rpc_timing_log_level) =
+        parse_rpc_timing_log_level(config.jsonrpc_timing_log_level.as_deref());
+
+    simple_logger::SimpleLogger::new()
+        .with_level(base_log_level)
+        .with_module_level(
+            "nodeget_server::rpc_timing",
+            rpc_timing_log_level.to_level_filter(),
+        )
+        .init()
+        .unwrap();
+
+    if let Some(invalid_level) = invalid_rpc_timing_log_level {
+        log::warn!("Invalid jsonrpc_timing_log_level '{invalid_level}', fallback to 'trace'");
+    }
 
     // Jemalloc Mem Debug
     #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
@@ -123,8 +141,14 @@ async fn main() {
     let rpc_module = get_modules();
 
     let (stop_handle, _server_handle) = jsonrpsee::server::stop_channel();
+    let rpc_middleware = jsonrpsee::server::middleware::rpc::RpcServiceBuilder::new()
+        .layer_fn(move |service| RpcTimingMiddleware {
+            service,
+            level: rpc_timing_log_level,
+        });
 
     let jsonrpc_service = jsonrpsee::server::Server::builder()
+        .set_rpc_middleware(rpc_middleware)
         .set_config(
             jsonrpsee::server::ServerConfig::builder()
                 .max_connections(config.jsonrpc_max_connections.unwrap_or(100))
