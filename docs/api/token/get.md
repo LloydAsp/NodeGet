@@ -7,12 +7,24 @@
 `token_get` 是用于获取的方法，需要提供:
 
 - `token`: 需要查询的 Token
+- `supertoken`（可选）: SuperToken，启用后允许 `token` 传入 `username` / `token_key`
 
 ```json
 {
   "token": "demo_token"
 }
 ```
+
+当你持有 SuperToken 时，可以用简写查询指定 Token：
+
+```json
+{
+  "token": "target_username_or_token_key",
+  "supertoken": "SUPER_TOKEN_KEY:SUPER_TOKEN_SECRET"
+}
+```
+
+若 `supertoken` 存在，`token` 仍然支持完整格式（`token_key:token_secret` 或 `username|password`）。
 
 ## 返回值
 

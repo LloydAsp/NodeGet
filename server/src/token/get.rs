@@ -76,6 +76,41 @@ pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
     })
 }
 
+pub async fn get_token_by_key_or_username(identifier: &str) -> anyhow::Result<Token> {
+    let db = DB.get().ok_or_else(|| {
+        NodegetError::ConfigNotFound("Database connection not initialized".to_owned())
+    })?;
+
+    let token_model = if let Some(model) = token::Entity::find()
+        .filter(token::Column::TokenKey.eq(identifier))
+        .one(db)
+        .await
+        .map_err(|e| NodegetError::DatabaseError(format!("Database query error: {e}")))?
+    {
+        model
+    } else {
+        token::Entity::find()
+            .filter(token::Column::Username.eq(identifier))
+            .one(db)
+            .await
+            .map_err(|e| NodegetError::DatabaseError(format!("Database query error: {e}")))?
+            .ok_or_else(|| NodegetError::NotFound(format!(
+                "Token not found by key/username: {identifier}"
+            )))?
+    };
+
+    let token_limit = parse_token_limit_with_compat(token_model.token_limit)?;
+
+    Ok(Token {
+        version: token_model.version,
+        token_key: token_model.token_key,
+        timestamp_from: token_model.time_stamp_from,
+        timestamp_to: token_model.time_stamp_to,
+        token_limit,
+        username: token_model.username,
+    })
+}
+
 fn drop_unknown_permissions(mut token_limit_value: Value) -> Value {
     let Some(limits) = token_limit_value.as_array_mut() else {
         return token_limit_value;

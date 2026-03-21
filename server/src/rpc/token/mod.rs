@@ -14,7 +14,7 @@ mod list_all_tokens;
 #[rpc(server, namespace = "token")]
 pub trait Rpc {
     #[method(name = "get")]
-    async fn get(&self, token: String) -> RpcResult<Box<RawValue>>;
+    async fn get(&self, token: String, supertoken: Option<String>) -> RpcResult<Box<RawValue>>;
 
     #[method(name = "create")]
     async fn create(
@@ -42,8 +42,8 @@ pub struct TokenRpcImpl;
 
 #[async_trait]
 impl RpcServer for TokenRpcImpl {
-    async fn get(&self, token: String) -> RpcResult<Box<RawValue>> {
-        get::get(token).await
+    async fn get(&self, token: String, supertoken: Option<String>) -> RpcResult<Box<RawValue>> {
+        get::get(token, supertoken).await
     }
 
     async fn create(
