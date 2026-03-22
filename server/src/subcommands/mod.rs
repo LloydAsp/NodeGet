@@ -2,6 +2,7 @@ use log::info;
 
 use crate::token::super_token::generate_super_token;
 
+pub mod get_uuid;
 pub mod init;
 pub mod roll_super_token;
 pub mod serve;

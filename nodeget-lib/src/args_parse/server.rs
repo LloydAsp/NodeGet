@@ -28,6 +28,11 @@ pub enum ServerCommand {
         #[arg(long, short)]
         config: String,
     },
+    /// Print server UUID from config and exit.
+    GetUuid {
+        #[arg(long, short)]
+        config: String,
+    },
 }
 
 impl ServerArgs {
@@ -51,7 +56,8 @@ impl ServerArgs {
         match &self.command {
             ServerCommand::Serve { config }
             | ServerCommand::Init { config }
-            | ServerCommand::RollSuperToken { config } => config.as_str(),
+            | ServerCommand::RollSuperToken { config }
+            | ServerCommand::GetUuid { config } => config.as_str(),
         }
     }
 }

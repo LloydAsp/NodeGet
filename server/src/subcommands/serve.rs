@@ -42,8 +42,32 @@ pub async fn run(
         )
         .to_service_builder()
         .build(rpc_module, stop_handle.clone());
+    let jsonrpc_service_for_root = jsonrpc_service.clone();
+    let landing_html = render_root_html(&config.server_uuid.to_string(), env!("CARGO_PKG_VERSION"));
 
     let app = axum::Router::new()
+        .route(
+            "/",
+            any(move |req: axum::extract::Request| {
+                let mut rpc_service = jsonrpc_service_for_root.clone();
+                let landing_html = landing_html.clone();
+                async move {
+                    if is_websocket_upgrade(req.headers()) {
+                        return rpc_service.call(req).await.unwrap();
+                    }
+
+                    if req.method() == axum::http::Method::GET {
+                        return axum::response::Response::builder()
+                            .status(axum::http::StatusCode::OK)
+                            .header(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
+                            .body(jsonrpsee::server::HttpBody::from(landing_html))
+                            .expect("Failed to build HTML response");
+                    }
+
+                    rpc_service.call(req).await.unwrap()
+                }
+            }),
+        )
         .route("/terminal", any(crate::terminal::terminal_ws_handler))
         .with_state(terminal_state)
         .fallback(any(move |req: axum::extract::Request| {
@@ -76,6 +100,52 @@ pub async fn run(
             });
         }
     }
+}
+
+fn render_root_html(serv_uuid: &str, serv_version: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NodeGet Server Backend</title>
+    <meta name="description" content="Next-generation server monitoring and management tools">
+    <link rel="icon" href="https://nodeget.com/logo.png">
+</head>
+<body>
+    <h1>Welcome to NodeGet</h1>
+    <p>Next-generation server monitoring and management tools</p>
+    <h2>Server</h2>
+    <p>UUID: <span>{serv_uuid}</span></p>
+    <p>Version: <span>{serv_version}</span></p>
+    <h2>Useful Links</h2>
+    <ul>
+        <li><a href="https://dash.nodeget.com">Dashboard</a></li>
+        <li><a href="https://nodeget.com">Official Website</a></li>
+        <li><a href="https://github.com/nodeseekdev/nodeget">Github Project</a></li>
+    </ul>
+</body>
+</html>"#
+    )
+}
+
+fn is_websocket_upgrade(headers: &axum::http::HeaderMap) -> bool {
+    let has_upgrade_header = headers
+        .get(axum::http::header::UPGRADE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("websocket"));
+
+    let has_connection_upgrade = headers
+        .get(axum::http::header::CONNECTION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(',')
+                .any(|segment| segment.trim().eq_ignore_ascii_case("upgrade"))
+        });
+
+    has_upgrade_header && has_connection_upgrade
 }
 
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]

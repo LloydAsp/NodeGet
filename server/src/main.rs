@@ -87,11 +87,9 @@ async fn main() {
     // 初始化全局 Config
     update_global_config(config.clone()).unwrap();
 
-    // 连接数据库
-    db_connection::init_db_connection().await;
-
     match args.command {
         ServerCommand::Serve { .. } => {
+            db_connection::init_db_connection().await;
             loop {
                 subcommands::serve::run(&config, rpc_timing_log_level).await;
 
@@ -105,10 +103,15 @@ async fn main() {
             }
         }
         ServerCommand::Init { .. } => {
+            db_connection::init_db_connection().await;
             subcommands::init::run().await;
         }
         ServerCommand::RollSuperToken { .. } => {
+            db_connection::init_db_connection().await;
             subcommands::roll_super_token::run().await;
+        }
+        ServerCommand::GetUuid { .. } => {
+            subcommands::get_uuid::run(&config).await;
         }
     }
 }
