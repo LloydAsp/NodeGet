@@ -21,6 +21,7 @@
 ```json
 [
     {
+        "cron_source": "daily_check",
         "error_message": null,
         "success": true,
         "task_event_result": {
@@ -36,6 +37,8 @@
     // 该字段为 Vec<_>，可指定多个
 ]
 ```
+
+其中 `cron_source` 为可选字段：若该任务由 crontab 创建，则为对应的 cron `name`；否则为 `null`。
 
 ## 删除任务记录
 

@@ -59,6 +59,7 @@ pub async fn create_task(
             id: ActiveValue::default(),
             uuid: Set(target_uuid),
             token: Set(token.clone()),
+            cron_source: Set(None),
             timestamp: Set(None),
             success: Set(None),
             error_message: Set(None),

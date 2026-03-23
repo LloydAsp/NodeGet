@@ -61,11 +61,9 @@ async fn execute_task(
             .map(|d| task_type.result_from_duration(d))
             .map_err(|e| NodegetError::Other(format!("{e}")).into()),
 
-        TaskEventType::HttpRequest(request) => {
-            http_request::execute_http_request(request.clone())
-                .await
-                .map(TaskEventResult::HttpRequest)
-        }
+        TaskEventType::HttpRequest(request) => http_request::execute_http_request(request.clone())
+            .await
+            .map(TaskEventResult::HttpRequest),
 
         TaskEventType::WebShell(web_shell) => {
             let terminal_id = web_shell.terminal_id.to_string();

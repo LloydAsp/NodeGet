@@ -78,6 +78,7 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         query = query
             .column(task::Column::Id)
             .column(task::Column::Uuid)
+            .column(task::Column::CronSource)
             .column(task::Column::Timestamp)
             .column(task::Column::Success)
             .column(task::Column::ErrorMessage)
@@ -132,6 +133,9 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                                 .like(pattern),
                         );
                     }
+                }
+                TaskQueryCondition::CronSource(cron_source) => {
+                    query = query.filter(task::Column::CronSource.eq(cron_source));
                 }
 
                 TaskQueryCondition::Limit(n) => {

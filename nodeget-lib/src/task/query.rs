@@ -24,6 +24,8 @@ pub enum TaskQueryCondition {
     IsRunning, // 仅查找 success 字段为空
     // 按任务类型过滤，task_event_type 中有字段为 `String` 的行
     Type(String),
+    // 按 cron 来源过滤（由 crontab 创建的任务会写入 cron name）
+    CronSource(String),
 
     // 限制返回结果数量
     Limit(u64), // limit
@@ -46,6 +48,8 @@ pub struct TaskResponseItem {
     pub task_id: i64,
     // UUID
     pub uuid: String,
+    // 任务来源的 cron name，非定时任务为 None
+    pub cron_source: Option<String>,
     // 时间戳，可选参数
     pub timestamp: Option<i64>,
     // 执行是否成功，可选参数

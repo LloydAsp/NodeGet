@@ -9,8 +9,8 @@ use nodeget_lib::permission::data_structure::{Permission, Scope, StaticMonitorin
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::error_message::anyhow_error_to_raw;
 use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
-use serde_json::value::RawValue;
 use serde_json::Value;
+use serde_json::value::RawValue;
 
 #[derive(Debug, FromQueryResult)]
 struct JsonAggRow {
@@ -56,8 +56,10 @@ pub async fn query_static_avg(
         Ok(result) => Ok(result),
         Err(e) => {
             let raw = anyhow_error_to_raw(&e).unwrap_or_else(|_| {
-                RawValue::from_string(r#"{"error_id":999,"error_message":"Internal error"}"#.to_owned())
-                    .unwrap_or_else(|_| RawValue::from_string("null".to_owned()).unwrap())
+                RawValue::from_string(
+                    r#"{"error_id":999,"error_message":"Internal error"}"#.to_owned(),
+                )
+                .unwrap_or_else(|_| RawValue::from_string("null".to_owned()).unwrap())
             });
             let nodeget_err = nodeget_lib::error::anyhow_to_nodeget_error(&e);
             let json_str = raw.get();
@@ -133,8 +135,9 @@ async fn query_static_avg_postgres(
     let json = serde_json::to_string(&json)
         .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
 
-    RawValue::from_string(json)
-        .map_err(|e| NodegetError::SerializationError(format!("RawValue creation error: {e}")).into())
+    RawValue::from_string(json).map_err(|e| {
+        NodegetError::SerializationError(format!("RawValue creation error: {e}")).into()
+    })
 }
 
 fn build_postgres_static_avg_sql(fields: &[StaticDataQueryField]) -> String {

@@ -16,6 +16,7 @@ use crate::rpc::monitoring_data_report::{
 };
 use crate::tasks::handle_task;
 use log::{Level, error, info};
+use nodeget_lib::args_parse::agent::AgentArgs;
 use nodeget_lib::config::agent::AgentConfig;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::utils::uuid::compare_uuid;
@@ -23,7 +24,6 @@ use std::str::FromStr;
 use std::sync::{OnceLock, RwLock};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-use nodeget_lib::args_parse::agent::AgentArgs;
 
 mod monitoring;
 mod rpc;

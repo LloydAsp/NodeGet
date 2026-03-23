@@ -217,6 +217,7 @@ pub enum TaskQueryCondition {
     IsFailure,    // 仅查找 success 字段为 false
     IsRunning,    // 仅查找 success 字段为空
     Type(String), // task_event_type 中有字段为 `String` 的行
+    CronSource(String), // 仅查找由指定 cron name 创建的任务
 
     Limit(u64), // limit
 

@@ -31,6 +31,7 @@ pub async fn crontab_task(
                 id: ActiveValue::default(),
                 uuid: Set(uuid),
                 token: Set(token.clone()),
+                cron_source: Set(Some(cron_name.clone())),
                 timestamp: Set(None),
                 success: Set(None),
                 error_message: Set(None),

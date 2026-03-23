@@ -34,7 +34,9 @@ async fn insert_new_super_token(
     token::Entity::insert(super_token_model)
         .exec(db)
         .await
-        .map_err(|e| NodegetError::DatabaseError(format!("Failed to initialize super token: {e}")))?;
+        .map_err(|e| {
+            NodegetError::DatabaseError(format!("Failed to initialize super token: {e}"))
+        })?;
 
     Ok((full_token, raw_password))
 }
@@ -65,10 +67,9 @@ pub async fn roll_super_token() -> anyhow::Result<(String, String)> {
         NodegetError::DatabaseError("Database connection not initialized".to_string())
     })?;
 
-    token::Entity::delete_by_id(1)
-        .exec(db)
-        .await
-        .map_err(|e| NodegetError::DatabaseError(format!("Failed to delete old super token: {e}")))?;
+    token::Entity::delete_by_id(1).exec(db).await.map_err(|e| {
+        NodegetError::DatabaseError(format!("Failed to delete old super token: {e}"))
+    })?;
 
     insert_new_super_token(db).await
 }

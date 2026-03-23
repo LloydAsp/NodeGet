@@ -8,10 +8,10 @@
     dead_code
 )]
 
-use log::info;
-use std::str::FromStr;
-use nodeget_lib::args_parse::server::{ServerArgs, ServerCommand};
 use crate::rpc_timing::parse_rpc_timing_log_level;
+use log::info;
+use nodeget_lib::args_parse::server::{ServerArgs, ServerCommand};
+use std::str::FromStr;
 #[cfg(all(not(target_os = "windows"), feature = "jemalloc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -39,8 +39,9 @@ pub static DB: tokio::sync::OnceCell<sea_orm::DatabaseConnection> =
     tokio::sync::OnceCell::const_new();
 
 // 全局服务器配置单例
-static SERVER_CONFIG: std::sync::OnceLock<std::sync::RwLock<nodeget_lib::config::server::ServerConfig>> =
-    std::sync::OnceLock::new();
+static SERVER_CONFIG: std::sync::OnceLock<
+    std::sync::RwLock<nodeget_lib::config::server::ServerConfig>,
+> = std::sync::OnceLock::new();
 pub(crate) static SERVER_CONFIG_PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 pub(crate) static RELOAD_NOTIFY: std::sync::OnceLock<tokio::sync::Notify> =
     std::sync::OnceLock::new();
@@ -116,9 +117,7 @@ async fn main() {
     }
 }
 
-fn update_global_config(
-    config: nodeget_lib::config::server::ServerConfig,
-) -> anyhow::Result<()> {
+fn update_global_config(config: nodeget_lib::config::server::ServerConfig) -> anyhow::Result<()> {
     if let Some(lock) = SERVER_CONFIG.get() {
         let mut guard = lock.write().map_err(|e| anyhow::anyhow!("{e}"))?;
         *guard = config;

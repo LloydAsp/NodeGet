@@ -8,8 +8,8 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::sync::OnceLock;
 use std::time::Duration;
-use tokio::task::JoinHandle;
 use tokio::sync::OnceCell;
+use tokio::task::JoinHandle;
 
 #[derive(Clone, Copy)]
 enum IpFamily {

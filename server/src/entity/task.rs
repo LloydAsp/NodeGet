@@ -10,6 +10,7 @@ pub struct Model {
     pub id: i64,
     pub uuid: Uuid,
     pub token: String,
+    pub cron_source: Option<String>,
     pub timestamp: Option<i64>,
     pub success: Option<bool>,
     pub error_message: Option<String>,

@@ -1,12 +1,12 @@
-use crate::{RELOAD_NOTIFY, SERVER_CONFIG, SERVER_CONFIG_PATH};
 use crate::rpc::RpcHelper;
+use crate::token::super_token::check_super_token;
+use crate::{RELOAD_NOTIFY, SERVER_CONFIG, SERVER_CONFIG_PATH};
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use log::info;
 use nodeget_lib::config::server::ServerConfig;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::token_auth::TokenOrAuth;
-use crate::token::super_token::check_super_token;
 use nodeget_lib::utils::version::NodeGetVersion;
 use serde_json::Value;
 use serde_json::value::RawValue;
@@ -94,9 +94,9 @@ mod config_ops {
         let process_logic = async {
             ensure_super_token(&token).await?;
 
-            let config_path = SERVER_CONFIG_PATH
-                .get()
-                .ok_or_else(|| NodegetError::Other("Server config path not initialized".to_owned()))?;
+            let config_path = SERVER_CONFIG_PATH.get().ok_or_else(|| {
+                NodegetError::Other("Server config path not initialized".to_owned())
+            })?;
 
             let file = tokio::fs::read_to_string(config_path)
                 .await
@@ -125,9 +125,9 @@ mod config_ops {
             let _parsed: ServerConfig = toml::from_str(&config_string)
                 .map_err(|e| NodegetError::ParseError(format!("Config parse error: {e}")))?;
 
-            let config_path = SERVER_CONFIG_PATH
-                .get()
-                .ok_or_else(|| NodegetError::Other("Server config path not initialized".to_owned()))?;
+            let config_path = SERVER_CONFIG_PATH.get().ok_or_else(|| {
+                NodegetError::Other("Server config path not initialized".to_owned())
+            })?;
 
             tokio::fs::write(config_path, config_string)
                 .await

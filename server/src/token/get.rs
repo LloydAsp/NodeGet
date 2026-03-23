@@ -94,9 +94,9 @@ pub async fn get_token_by_key_or_username(identifier: &str) -> anyhow::Result<To
             .one(db)
             .await
             .map_err(|e| NodegetError::DatabaseError(format!("Database query error: {e}")))?
-            .ok_or_else(|| NodegetError::NotFound(format!(
-                "Token not found by key/username: {identifier}"
-            )))?
+            .ok_or_else(|| {
+                NodegetError::NotFound(format!("Token not found by key/username: {identifier}"))
+            })?
     };
 
     let token_limit = parse_token_limit_with_compat(token_model.token_limit)?;

@@ -47,7 +47,10 @@ where
     type NotificationResponse = S::NotificationResponse;
     type BatchResponse = S::BatchResponse;
 
-    fn call<'a>(&self, request: Request<'a>) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
+    fn call<'a>(
+        &self,
+        request: Request<'a>,
+    ) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
         let method_name = request.method_name().to_owned();
         let request_id = format!("{:?}", request.id());
         let level = self.level;
@@ -99,7 +102,10 @@ where
         }
     }
 
-    fn notification<'a>(&self, n: Notification<'a>) -> impl Future<Output = Self::NotificationResponse> + Send + 'a {
+    fn notification<'a>(
+        &self,
+        n: Notification<'a>,
+    ) -> impl Future<Output = Self::NotificationResponse> + Send + 'a {
         let method_name = n.method_name().to_owned();
         let level = self.level;
         let service = self.service.clone();

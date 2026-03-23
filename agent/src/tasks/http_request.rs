@@ -24,7 +24,9 @@ fn ensure_rustls_ring_provider() {
 fn parse_http_method(method: &str) -> Result<Method> {
     let method = method.trim();
     if method.is_empty() {
-        return Err(NodegetError::InvalidInput("http_request.method cannot be empty".to_owned()).into());
+        return Err(
+            NodegetError::InvalidInput("http_request.method cannot be empty".to_owned()).into(),
+        );
     }
 
     Method::from_bytes(method.to_ascii_uppercase().as_bytes()).map_err(|e| {
@@ -127,9 +129,10 @@ pub async fn execute_http_request(task: HttpRequestTask) -> Result<HttpRequestTa
 
     let mut headers = Vec::new();
     for (name, value) in response.headers() {
-        let value_string = value
-            .to_str()
-            .map_or_else(|_| BASE64_STANDARD.encode(value.as_bytes()), ToOwned::to_owned);
+        let value_string = value.to_str().map_or_else(
+            |_| BASE64_STANDARD.encode(value.as_bytes()),
+            ToOwned::to_owned,
+        );
         let mut one = BTreeMap::new();
         one.insert(name.as_str().to_owned(), value_string);
         headers.push(one);

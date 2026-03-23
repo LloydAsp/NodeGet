@@ -3,19 +3,19 @@ use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
 use nodeget_lib::monitoring::data_structure::{DynamicMonitoringData, StaticMonitoringData};
 use nodeget_lib::monitoring::query::{
-    DynamicDataAvgQuery, DynamicDataQuery, DynamicDataQueryField, StaticDataAvgQuery,
-    QueryCondition, StaticDataQuery, StaticDataQueryField,
+    DynamicDataAvgQuery, DynamicDataQuery, DynamicDataQueryField, QueryCondition,
+    StaticDataAvgQuery, StaticDataQuery, StaticDataQueryField,
 };
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
-mod query_dynamic_avg;
-mod query_dynamic;
-mod query_dynamic_multi_last;
 mod delete_dynamic;
 mod delete_static;
-mod query_static_avg;
+mod query_dynamic;
+mod query_dynamic_avg;
+mod query_dynamic_multi_last;
 mod query_static;
+mod query_static_avg;
 mod query_static_multi_last;
 mod report_dynamic;
 mod report_static;

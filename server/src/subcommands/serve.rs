@@ -2,10 +2,10 @@ use axum::routing::any;
 use log::info;
 use tower::Service;
 
+use crate::RELOAD_NOTIFY;
 use crate::crontab::init_crontab_worker;
 use crate::rpc::get_modules;
 use crate::rpc_timing::RpcTimingMiddleware;
-use crate::RELOAD_NOTIFY;
 
 pub async fn run(
     config: &nodeget_lib::config::server::ServerConfig,
@@ -25,10 +25,12 @@ pub async fn run(
     let rpc_module = get_modules();
 
     let (stop_handle, _server_handle) = jsonrpsee::server::stop_channel();
-    let rpc_middleware = jsonrpsee::server::middleware::rpc::RpcServiceBuilder::new()
-        .layer_fn(move |service| RpcTimingMiddleware {
-            service,
-            level: rpc_timing_log_level,
+    let rpc_middleware =
+        jsonrpsee::server::middleware::rpc::RpcServiceBuilder::new().layer_fn(move |service| {
+            RpcTimingMiddleware {
+                service,
+                level: rpc_timing_log_level,
+            }
         });
 
     let jsonrpc_service = jsonrpsee::server::Server::builder()

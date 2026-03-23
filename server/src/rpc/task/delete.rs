@@ -14,7 +14,10 @@ use sea_orm::{
 };
 use serde_json::value::RawValue;
 
-pub async fn delete(token: String, conditions: Vec<TaskQueryCondition>) -> RpcResult<Box<RawValue>> {
+pub async fn delete(
+    token: String,
+    conditions: Vec<TaskQueryCondition>,
+) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
@@ -145,6 +148,11 @@ pub async fn delete(token: String, conditions: Vec<TaskQueryCondition>) -> RpcRe
                                 .like(pattern),
                         );
                     }
+                }
+                TaskQueryCondition::CronSource(cron_source) => {
+                    select_query =
+                        select_query.filter(task::Column::CronSource.eq(cron_source.clone()));
+                    delete_query = delete_query.filter(task::Column::CronSource.eq(cron_source));
                 }
                 TaskQueryCondition::Limit(n) => {
                     limit_count = Some(n);

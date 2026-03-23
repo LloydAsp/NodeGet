@@ -8,8 +8,9 @@ use serde_json::value::RawValue;
 pub async fn get(token: String, supertoken: Option<String>) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let token_info = if let Some(supertoken) = supertoken {
-            let supertoken_or_auth = TokenOrAuth::from_full_token(&supertoken)
-                .map_err(|e| NodegetError::ParseError(format!("Failed to parse supertoken: {e}")))?;
+            let supertoken_or_auth = TokenOrAuth::from_full_token(&supertoken).map_err(|e| {
+                NodegetError::ParseError(format!("Failed to parse supertoken: {e}"))
+            })?;
 
             let is_super_token = check_super_token(&supertoken_or_auth)
                 .await

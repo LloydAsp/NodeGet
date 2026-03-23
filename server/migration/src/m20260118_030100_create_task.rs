@@ -21,6 +21,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(TaskInDatabase::Uuid).uuid().not_null())
                     .col(ColumnDef::new(TaskInDatabase::Token).string().not_null())
+                    .col(ColumnDef::new(TaskInDatabase::CronSource).string().null())
                     .col(
                         ColumnDef::new(TaskInDatabase::Timestamp)
                             .big_integer()
@@ -57,6 +58,15 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-task-cron-source")
+                    .table(TaskInDatabase::Table)
+                    .col(TaskInDatabase::CronSource)
+                    .to_owned(),
+            )
+            .await?;
 
         match manager.get_database_backend() {
             DbBackend::Postgres => {
@@ -89,6 +99,7 @@ enum TaskInDatabase {
     Id,
     Uuid,
     Token,
+    CronSource,
     Timestamp,
     Success,
 
