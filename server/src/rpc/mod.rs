@@ -5,6 +5,7 @@ use nodeget_lib::error::NodegetError;
 use sea_orm::{ActiveValue, DatabaseConnection, Set};
 use serde::Serialize;
 use serde_json::{Value, to_value};
+use std::sync::OnceLock;
 
 pub mod agent;
 pub mod crontab;
@@ -28,7 +29,13 @@ pub trait RpcHelper {
     }
 }
 
+static GLOBAL_RPC_MODULE: OnceLock<RpcModule<NodegetServerRpcImpl>> = OnceLock::new();
+
 pub fn get_modules() -> RpcModule<NodegetServerRpcImpl> {
+    GLOBAL_RPC_MODULE.get_or_init(build_modules).clone()
+}
+
+fn build_modules() -> RpcModule<NodegetServerRpcImpl> {
     use crate::rpc::agent::RpcServer as AgentRpcServer;
     use crate::rpc::crontab::RpcServer as CrontabRpcServer;
     use crate::rpc::crontab_result::RpcServer as CrontabResultRpcServer;

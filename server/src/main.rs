@@ -29,6 +29,7 @@ mod rpc;
 mod terminal;
 // 令牌模块，处理令牌相关功能
 mod crontab;
+pub mod js_runtime;
 mod kv;
 mod rpc_timing;
 mod subcommands;

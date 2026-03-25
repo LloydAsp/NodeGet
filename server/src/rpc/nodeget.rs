@@ -32,6 +32,7 @@ pub trait Rpc {
     async fn edit_config(&self, token: String, config_string: String) -> RpcResult<bool>;
 }
 
+#[derive(Clone)]
 pub struct NodegetServerRpcImpl;
 
 impl RpcHelper for NodegetServerRpcImpl {}
