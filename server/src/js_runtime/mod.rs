@@ -14,6 +14,7 @@ pub async fn js_runner(js_code: impl ToString) -> Result<Value, Error> {
     let js_code = js_code.to_string();
 
     let js_result: Result<Value, Error> = rquickjs::async_with!(ctx => |ctx| {
+        llrt_fetch::init(&ctx)?;
         let global = ctx.globals();
         global.set("nodeget", Func::from(Async(nodeget::js_nodeget)))?;
 
