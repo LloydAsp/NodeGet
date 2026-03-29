@@ -255,6 +255,10 @@ export const themeZhConfig = {
 				{
 					text: '脚本编写规范',
 					link: '/api/js_worker/script.md'
+				},
+				{
+					text: '外部注入能力',
+					link: '/api/js_worker/injected.md'
 				}]
 			},
 			// JsResult
