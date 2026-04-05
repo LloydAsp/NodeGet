@@ -18,14 +18,17 @@ pub async fn create(
     cron_type: CronType,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        if let Err(e) = Schedule::from_str(&cron_expression) {
-            return Err(NodegetError::ParseError(format!("Invalid cron expression: {e}")).into());
-        }
-
+        // 1. 先验证 Token 格式（低成本操作）
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
+        // 2. 再检查权限（防止未授权访问）
         ensure_crontab_payload_write_permission(&token_or_auth, &cron_type).await?;
+
+        // 3. 最后验证 Cron 表达式（高成本操作，防止 DoS）
+        if let Err(e) = Schedule::from_str(&cron_expression) {
+            return Err(NodegetError::ParseError(format!("Invalid cron expression: {e}")).into());
+        }
 
         let db = CrontabRpcImpl::get_db()?;
 

@@ -1,5 +1,4 @@
 use crate::rpc::RpcHelper;
-use crate::token::super_token::check_super_token;
 use crate::{RELOAD_NOTIFY, SERVER_CONFIG, SERVER_CONFIG_PATH};
 use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
@@ -73,8 +72,38 @@ impl RpcServer for NodegetServerRpcImpl {
 mod config_ops {
     use super::{
         NodegetError, RELOAD_NOTIFY, RpcResult, SERVER_CONFIG_PATH, ServerConfig, TokenOrAuth,
-        check_super_token,
     };
+    use crate::token::super_token::check_super_token;
+    use std::path::Path;
+
+    // 验证配置文件路径，防止路径遍历攻击
+    fn validate_config_path(config_path: &str) -> anyhow::Result<&Path> {
+        let path = Path::new(config_path);
+        
+        // 获取当前工作目录作为允许的基础目录
+        let current_dir = std::env::current_dir()
+            .map_err(|e| NodegetError::Other(format!("Cannot determine working directory: {e}")))?;
+        
+        // 获取规范化路径（解析符号链接和相对路径）
+        let canonical_path = path.canonicalize()
+            .map_err(|e| NodegetError::InvalidInput(format!("Invalid config path: {e}")))?;
+        
+        // 验证路径在允许目录内
+        if !canonical_path.starts_with(&current_dir) {
+            return Err(NodegetError::PermissionDenied(
+                "Config path must be within working directory".to_owned()
+            ).into());
+        }
+        
+        // 验证是文件而非目录
+        if !canonical_path.is_file() {
+            return Err(NodegetError::InvalidInput(
+                "Config path must be a regular file".to_owned()
+            ).into());
+        }
+        
+        Ok(path)
+    }
 
     async fn ensure_super_token(token: &str) -> anyhow::Result<()> {
         let token_or_auth = TokenOrAuth::from_full_token(token)
@@ -101,6 +130,9 @@ mod config_ops {
             let config_path = SERVER_CONFIG_PATH.get().ok_or_else(|| {
                 NodegetError::Other("Server config path not initialized".to_owned())
             })?;
+            
+            // 验证路径安全性，防止路径遍历
+            validate_config_path(config_path)?;
 
             let file = tokio::fs::read_to_string(config_path)
                 .await
@@ -132,10 +164,23 @@ mod config_ops {
             let config_path = SERVER_CONFIG_PATH.get().ok_or_else(|| {
                 NodegetError::Other("Server config path not initialized".to_owned())
             })?;
-
-            tokio::fs::write(config_path, config_string)
+            
+            // 验证路径安全性，防止路径遍历
+            validate_config_path(config_path)?;
+            
+            // 使用临时文件+原子重命名，确保写入完整性
+            let temp_path = format!("{}.tmp", config_path);
+            tokio::fs::write(&temp_path, config_string)
                 .await
-                .map_err(|e| NodegetError::Other(format!("Failed to write config file: {e}")))?;
+                .map_err(|e| NodegetError::Other(format!("Failed to write temp config file: {e}")))?;
+            
+            tokio::fs::rename(&temp_path, config_path)
+                .await
+                .map_err(|e| {
+                    // 清理临时文件
+                    let _ = tokio::fs::remove_file(&temp_path);
+                    NodegetError::Other(format!("Failed to rename config file: {e}"))
+                })?;
 
             if let Some(notify) = RELOAD_NOTIFY.get() {
                 notify.notify_one();

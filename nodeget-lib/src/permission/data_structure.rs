@@ -165,11 +165,10 @@ pub enum NodeGet {
     GetRtPool,
 }
 
-
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JsWorker {
-    ListALlJsWorker,
+    ListAllJsWorker,
     Create,
     Read,
     Write, // update
@@ -177,7 +176,6 @@ pub enum JsWorker {
     RunDefinedJsWorker,
     RunRawJsWorker,
 }
-
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -6,12 +6,24 @@ pub mod multi_server;
 use crate::rpc::multi_server::subscribe_to;
 use crate::AGENT_CONFIG;
 use log::{error, warn};
+use nodeget_lib::config::agent::AgentConfig;
+use nodeget_lib::error::NodegetError;
 use nodeget_lib::task::TaskEvent;
 use nodeget_lib::utils::JsonError;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time;
 use tokio_tungstenite::tungstenite::Message;
+
+// 安全地获取 Agent 配置
+fn get_agent_config_safe() -> anyhow::Result<AgentConfig> {
+    AGENT_CONFIG
+        .get()
+        .ok_or_else(|| NodegetError::Other("Agent config not initialized".to_owned()))?
+        .read()
+        .map(|guard| guard.clone())
+        .map_err(|_| NodegetError::Other("AGENT_CONFIG lock poisoned".to_owned()).into())
+}
 
 // JSON-RPC 2.0 请求结构体
 #[derive(Serialize, Deserialize)]
@@ -38,7 +50,11 @@ pub fn wrap_json_into_rpc_with_id_1(method: &str, params: Vec<serde_json::Value>
         params,
     };
 
-    serde_json::to_string(&rpc).unwrap()
+    // 这个序列化不应该失败，因为结构体只包含基本类型
+    // 但如果失败，返回一个错误响应而不是panic
+    serde_json::to_string(&rpc).unwrap_or_else(|e| {
+        format!(r#"{{"jsonrpc":"2.0","id":1,"error":{{"code":-32603,"message":"Internal error: failed to serialize request: {}"}}}}"#, e)
+    })
 }
 
 // JSON-RPC 任务结构体，用于接收服务器下发的任务
@@ -67,12 +83,13 @@ pub struct JsonRpcErrorMessage {
 pub async fn handle_error_message() {
     time::sleep(Duration::from_secs(1)).await;
 
-    let agent_config = AGENT_CONFIG
-        .get()
-        .expect("Agent config not initialized")
-        .read()
-        .expect("AGENT_CONFIG lock poisoned")
-        .clone();
+    let agent_config = match get_agent_config_safe() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("Failed to get agent config: {e}");
+            return;
+        }
+    };
 
     for server in agent_config.server.unwrap_or(vec![]) {
         tokio::spawn(async move {

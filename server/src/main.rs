@@ -60,24 +60,36 @@ async fn main() {
     RELOAD_NOTIFY.get_or_init(tokio::sync::Notify::new);
 
     // Config Parse
-    let mut config = nodeget_lib::config::server::ServerConfig::get_and_parse_config(&config_path)
-        .await
-        .unwrap();
+    let mut config = match nodeget_lib::config::server::ServerConfig::get_and_parse_config(&config_path).await {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to parse config: {e}");
+            std::process::exit(1);
+        }
+    };
 
     // Log init
-    let base_log_level = log::LevelFilter::from_str(&config.log_level)
-        .unwrap_or_else(|_| panic!("Invalid log_level '{}'", config.log_level));
+    let base_log_level = match log::LevelFilter::from_str(&config.log_level) {
+        Ok(level) => level,
+        Err(_) => {
+            eprintln!("Warning: Invalid log_level '{}', using INFO", config.log_level);
+            log::LevelFilter::Info
+        }
+    };
     let (rpc_timing_log_level, invalid_rpc_timing_log_level) =
         parse_rpc_timing_log_level(config.jsonrpc_timing_log_level.as_deref());
 
-    simple_logger::SimpleLogger::new()
+    if let Err(e) = simple_logger::SimpleLogger::new()
         .with_level(base_log_level)
         .with_module_level(
             "nodeget_server::rpc_timing",
             rpc_timing_log_level.to_level_filter(),
         )
         .init()
-        .unwrap();
+    {
+        eprintln!("Failed to initialize logger: {e}");
+        std::process::exit(1);
+    }
 
     if let Some(invalid_level) = invalid_rpc_timing_log_level {
         log::warn!("Invalid jsonrpc_timing_log_level '{invalid_level}', fallback to 'trace'");
@@ -86,7 +98,10 @@ async fn main() {
     info!("Starting nodeget-server with config: {config:?}");
 
     // 初始化全局 Config
-    update_global_config(config.clone()).unwrap();
+    if let Err(e) = update_global_config(config.clone()) {
+        log::error!("Failed to update global config: {e}");
+        std::process::exit(1);
+    }
 
     match args.command {
         ServerCommand::Serve { .. } => {
@@ -94,11 +109,17 @@ async fn main() {
             loop {
                 subcommands::serve::run(&config, rpc_timing_log_level).await;
 
-                let reloaded_config =
-                    nodeget_lib::config::server::ServerConfig::get_and_parse_config(&config_path)
-                        .await
-                        .unwrap_or_else(|e| panic!("Failed to reload config after edit: {e}"));
-                update_global_config(reloaded_config.clone()).unwrap();
+                let reloaded_config = match nodeget_lib::config::server::ServerConfig::get_and_parse_config(&config_path).await {
+                    Ok(cfg) => cfg,
+                    Err(e) => {
+                        log::error!("Failed to reload config after edit: {e}, keeping current config");
+                        continue;  // 保留当前配置，继续循环
+                    }
+                };
+                if let Err(e) = update_global_config(reloaded_config.clone()) {
+                    log::error!("Failed to update global config after reload: {e}, keeping current config");
+                    continue;
+                }
                 config = reloaded_config;
                 info!("Config hot reload applied.");
             }

@@ -64,7 +64,7 @@ pub async fn filter_workers_by_list_permission(
         let is_allowed = check_token_limit(
             &token_or_auth,
             vec![Scope::JsWorker(worker_name.clone())],
-            vec![Permission::JsWorker(JsWorkerPermission::ListALlJsWorker)],
+            vec![Permission::JsWorker(JsWorkerPermission::ListAllJsWorker)],
         )
         .await?;
 

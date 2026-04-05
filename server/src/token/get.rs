@@ -10,6 +10,15 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::Value;
+use subtle::ConstantTimeEq;
+
+/// 统一的身份验证失败错误消息，防止信息泄露
+const AUTH_FAILED_MESSAGE: &str = "Invalid credentials";
+
+/// 使用恒定时间比较验证哈希，防止时序攻击
+fn verify_hash_constant_time(computed_hash: &str, stored_hash: &str) -> bool {
+    computed_hash.as_bytes().ct_eq(stored_hash.as_bytes()).into()
+}
 
 pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
     let db = DB.get().ok_or_else(|| {
@@ -23,14 +32,11 @@ pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
                 .one(db)
                 .await
                 .map_err(|e| NodegetError::DatabaseError(format!("Database query error: {e}")))?
-                .ok_or_else(|| {
-                    NodegetError::NotFound("Token key not found in database".to_owned())
-                })?;
+                .ok_or_else(|| NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()))?;
 
-            if model.token_hash != hash_string(secret) {
-                return Err(
-                    NodegetError::PermissionDenied("Invalid token secret".to_owned()).into(),
-                );
+            let computed_hash = hash_string(secret);
+            if !verify_hash_constant_time(&computed_hash, &model.token_hash) {
+                return Err(NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()).into());
             }
 
             model
@@ -41,13 +47,12 @@ pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
                 .one(db)
                 .await
                 .map_err(|e| NodegetError::DatabaseError(format!("Database query error: {e}")))?
-                .ok_or_else(|| {
-                    NodegetError::NotFound("Username not found in database".to_owned())
-                })?;
+                .ok_or_else(|| NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()))?;
 
             let p_hash = hash_string(password);
-            if model.password_hash != Some(p_hash) {
-                return Err(NodegetError::PermissionDenied("Invalid password".to_owned()).into());
+            let stored_hash = model.password_hash.as_deref().unwrap_or("");
+            if !verify_hash_constant_time(&p_hash, stored_hash) {
+                return Err(NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()).into());
             }
 
             model
@@ -132,6 +137,17 @@ pub fn parse_token_limit_with_compat(token_limit_value: Value) -> anyhow::Result
     }
 }
 
+/// 通配符匹配函数 - 仅支持后缀通配符 `*`
+/// 
+/// # 说明
+/// - `pattern` 以 `*` 结尾时，匹配以 `*` 前内容开头的任意字符串
+/// - `pattern` 不以 `*` 结尾时，进行精确匹配
+/// 
+/// # 示例
+/// - `wildcard_matches_pattern("abc", "ab*")` -> true
+/// - `wildcard_matches_pattern("abc", "abc")` -> true  
+/// - `wildcard_matches_pattern("abc", "a*")` -> true
+/// - `wildcard_matches_pattern("abc", "xyz")` -> false
 fn wildcard_matches_pattern(value: &str, pattern: &str) -> bool {
     pattern
         .strip_suffix('*')

@@ -16,6 +16,14 @@ use sea_orm::{
 };
 use serde_json::value::RawValue;
 
+/// 转义 SQL LIKE 特殊字符，防止注入攻击
+/// 
+/// SQL LIKE 中 `%` 匹配任意字符序列，`_` 匹配单个字符
+/// 这些字符需要转义才能进行精确匹配
+fn escape_like_pattern(pattern: &str) -> String {
+    pattern.replace('%', r"\%").replace('_', r"\_")
+}
+
 pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         let token_or_auth = TokenOrAuth::from_full_token(&token)
@@ -28,6 +36,8 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
             "http_request",
             "web_shell",
             "execute",
+            "read_config",
+            "edit_config",
             "ip",
         ];
 
@@ -121,12 +131,15 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                 }
                 TaskQueryCondition::Type(type_key) => {
                     if db.get_database_backend() == DbBackend::Postgres {
+                        // PostgreSQL 使用 JSONB 操作符，无需转义
                         query = query.filter(
                             Expr::col(task::Column::TaskEventType)
                                 .binary(BinOper::Custom("?"), type_key),
                         );
                     } else {
-                        let pattern = format!("%\"{type_key}\":%");
+                        // SQLite: 转义 LIKE 特殊字符防止注入
+                        let escaped_key = escape_like_pattern(&type_key);
+                        let pattern = format!("%\"{escaped_key}\":%");
                         query = query.filter(
                             Expr::col(task::Column::TaskEventType)
                                 .cast_as(Alias::new("text"))

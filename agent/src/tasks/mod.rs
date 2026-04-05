@@ -13,6 +13,16 @@ use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 /// Task 结果类型
 pub type Result<T> = anyhow::Result<T>;
 
+// 安全地获取 Agent 配置
+fn get_agent_config() -> Result<AgentConfig> {
+    AGENT_CONFIG
+        .get()
+        .ok_or_else(|| NodegetError::Other("Agent config not initialized".to_owned()))?
+        .read()
+        .map(|guard| guard.clone())
+        .map_err(|_| NodegetError::Other("AGENT_CONFIG lock poisoned".to_owned()).into())
+}
+
 // 任务执行模块
 mod execute;
 // IP 获取模块
@@ -80,9 +90,11 @@ async fn execute_task(
             .map_err(|e| NodegetError::Other(format!("{e}")).into()),
 
         TaskEventType::ReadConfig => {
-            let file = fs::read_to_string(AGENT_ARGS.get().unwrap().config.clone())
+            let args = AGENT_ARGS.get()
+                .ok_or_else(|| NodegetError::Other("Agent args not initialized".to_owned()))?;
+            let file = fs::read_to_string(&args.config)
                 .await
-                .map_err(|e| NodegetError::Other(format!("{e}")))?;
+                .map_err(|e| NodegetError::Other(format!("Failed to read config file: {e}")))?;
             Ok(TaskEventResult::ReadConfig(file))
         }
 
@@ -94,9 +106,11 @@ async fn execute_task(
                 }
             };
 
-            fs::write(AGENT_ARGS.get().unwrap().config.clone(), config_string)
+            let args = AGENT_ARGS.get()
+                .ok_or_else(|| NodegetError::Other("Agent args not initialized".to_owned()))?;
+            fs::write(&args.config, config_string)
                 .await
-                .map_err(|e| NodegetError::Other(format!("Failed to write config.toml: {e}")))?;
+                .map_err(|e| NodegetError::Other(format!("Failed to write config file: {e}")))?;
 
             Ok(TaskEventResult::EditConfig(true))
         }
@@ -115,12 +129,13 @@ async fn execute_task(
 pub async fn handle_task() {
     time::sleep(Duration::from_secs(1)).await;
 
-    let agent_config = AGENT_CONFIG
-        .get()
-        .expect("Agent config not initialized")
-        .read()
-        .expect("AGENT_CONFIG lock poisoned")
-        .clone();
+    let agent_config = match get_agent_config() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            error!("Failed to get agent config: {e}");
+            return;
+        }
+    };
 
     for server in agent_config.server.unwrap_or(vec![]) {
         tokio::spawn(async move {
@@ -180,15 +195,18 @@ pub async fn handle_task() {
 
                     let timestamp = get_local_timestamp_ms().unwrap_or(0);
 
+                    let agent_uuid = match get_agent_config() {
+                        Ok(cfg) => cfg.agent_uuid,
+                        Err(e) => {
+                            error!("Failed to get agent config for response: {e}");
+                            return;
+                        }
+                    };
+
                     let response = match task_result {
                         Ok(task_result) => TaskEventResponse {
                             task_id: json_rpc.params.result.task_id,
-                            agent_uuid: AGENT_CONFIG
-                                .get()
-                                .expect("Agent config not initialized")
-                                .read()
-                                .expect("AGENT_CONFIG lock poisoned")
-                                .agent_uuid,
+                            agent_uuid,
                             task_token: json_rpc.params.result.task_token,
                             timestamp,
                             success: true,
@@ -199,12 +217,7 @@ pub async fn handle_task() {
                             let error_message = format!("{e}");
                             TaskEventResponse {
                                 task_id: json_rpc.params.result.task_id,
-                                agent_uuid: AGENT_CONFIG
-                                    .get()
-                                    .expect("Agent config not initialized")
-                                    .read()
-                                    .expect("AGENT_CONFIG lock poisoned")
-                                    .agent_uuid,
+                                agent_uuid,
                                 task_token: json_rpc.params.result.task_token,
                                 timestamp,
                                 success: false,
@@ -214,12 +227,23 @@ pub async fn handle_task() {
                         }
                     };
 
+                    let server_token_value = match serde_json::to_value(server_token) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("Failed to serialize server token: {e}");
+                            return;
+                        }
+                    };
+                    let response_value = match serde_json::to_value(response) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("Failed to serialize response: {e}");
+                            return;
+                        }
+                    };
                     let rpc = wrap_json_into_rpc_with_id_1(
                         "task_upload_task_result",
-                        vec![
-                            serde_json::to_value(server_token).unwrap(),
-                            serde_json::to_value(response).unwrap(),
-                        ],
+                        vec![server_token_value, response_value],
                     );
 
                     if let Err(e) = send_to(&server_name, Message::Text(Utf8Bytes::from(rpc))).await

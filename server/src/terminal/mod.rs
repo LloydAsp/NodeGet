@@ -16,6 +16,9 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use uuid::Uuid;
 
+// 终端消息通道缓冲区大小 - 防止内存耗尽
+const TERMINAL_CHANNEL_BUFFER_SIZE: usize = 4096;
+
 // 终端状态结构体，管理 Agent 和 User 之间的会话
 // Key 是 (agent_uuid, terminal_id)
 #[derive(Clone)]
@@ -34,11 +37,11 @@ pub struct TerminalSessionKey {
 //
 // Agent 连接时创建这个结构，User 连接时取走需要的部分
 pub struct SessionSlots {
-    // User -> Agent 的无界发送通道
-    pub tx_to_agent: mpsc::UnboundedSender<Message>,
+    // User -> Agent 的有界发送通道，防止内存耗尽
+    pub tx_to_agent: mpsc::Sender<Message>,
 
-    // Agent -> User 的无界接收通道，可选参数
-    pub rx_from_agent: Option<mpsc::UnboundedReceiver<Message>>,
+    // Agent -> User 的有界接收通道，可选参数
+    pub rx_from_agent: Option<mpsc::Receiver<Message>>,
 
     // 任务令牌
     pub task_token: String,
@@ -158,37 +161,43 @@ async fn handle_agent(
 
     info!("Agent connecting terminal: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
 
-    // User -> Agent
-    let (tx_to_agent, mut rx_from_user) = mpsc::unbounded_channel::<Message>();
-    // Agent -> User
-    let (tx_to_user, rx_from_agent) = mpsc::unbounded_channel::<Message>();
+    // User -> Agent - 使用有界通道防止内存耗尽
+    let (tx_to_agent, mut rx_from_user) = mpsc::channel::<Message>(TERMINAL_CHANNEL_BUFFER_SIZE);
+    // Agent -> User - 使用有界通道防止内存耗尽
+    let (tx_to_user, rx_from_agent) = mpsc::channel::<Message>(TERMINAL_CHANNEL_BUFFER_SIZE);
 
-    // 存入 Map
+    // 存入 Map - 使用 Entry API 避免 TOCTOU 竞态条件
     {
+        use std::collections::hash_map::Entry;
         let mut sessions = state.sessions.write().await;
-        if sessions.contains_key(&session_key) {
-            let error_json = generate_error_message(
-                108,
-                &format!(
-                    "Invalid Input: terminal_id '{terminal_id}' is already active for this agent"
-                ),
-            );
-            if let Err(e) = socket
-                .send(Message::Text(Utf8Bytes::from(error_json.to_string())))
-                .await
-            {
-                error!("Failed to send error message to agent: {e}");
+        
+        // Entry API 确保检查和插入是原子操作
+        match sessions.entry(session_key.clone()) {
+            Entry::Occupied(_) => {
+                // session 已存在，返回错误
+                let error_json = generate_error_message(
+                    108,
+                    &format!(
+                        "Invalid Input: terminal_id '{terminal_id}' is already active for this agent"
+                    ),
+                );
+                if let Err(e) = socket
+                    .send(Message::Text(Utf8Bytes::from(error_json.to_string())))
+                    .await
+                {
+                    error!("Failed to send error message to agent: {e}");
+                }
+                return;
             }
-            return;
+            Entry::Vacant(entry) => {
+                // session 不存在，安全插入
+                entry.insert(SessionSlots {
+                    tx_to_agent,                        // User 将会获取这个 Sender 发送数据给 Agent
+                    rx_from_agent: Some(rx_from_agent), // User 将会拿走这个 Receiver 接收 Agent 的数据
+                    task_token,
+                });
+            }
         }
-        sessions.insert(
-            session_key.clone(),
-            SessionSlots {
-                tx_to_agent,                        // User 将会获取这个 Sender 发送数据给 Agent
-                rx_from_agent: Some(rx_from_agent), // User 将会拿走这个 Receiver 接收 Agent 的数据
-                task_token,
-            },
-        );
     }
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
@@ -205,7 +214,7 @@ async fn handle_agent(
     // 从 Agent WS 接收数据 -> 发送给 User
     let send_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
-            if tx_to_user.send(msg).is_err() {
+            if tx_to_user.send(msg).await.is_err() {
                 break;
             }
         }
@@ -215,12 +224,10 @@ async fn handle_agent(
     let _ = send_task.await;
     recv_task.abort();
 
-    // 清理 Map
+    // 清理 Map - 直接删除，无需检查（remove操作本身就是幂等的）
     {
         let mut sessions = state.sessions.write().await;
-        if sessions.contains_key(&session_key) {
-            sessions.remove(&session_key);
-        }
+        sessions.remove(&session_key);
     }
     info!("Agent terminal disconnected: agent_uuid={agent_uuid}, terminal_id={terminal_id}");
 }
@@ -300,7 +307,7 @@ async fn handle_user(
 
     let send_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_receiver.next().await {
-            if tx_to_agent.send(msg).is_err() {
+            if tx_to_agent.send(msg).await.is_err() {
                 break;
             }
         }

@@ -12,6 +12,13 @@ use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
 use serde_json::Value;
 use serde_json::value::RawValue;
 use std::fmt::Write;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+// 生成唯一错误ID用于内部追踪
+static ERROR_COUNTER: AtomicU64 = AtomicU64::new(0);
+fn generate_error_id() -> u64 {
+    ERROR_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
 
 #[derive(Debug, FromQueryResult)]
 struct JsonAggRow {
@@ -128,8 +135,10 @@ async fn query_static_avg_postgres(
         .one(db)
         .await
         .map_err(|e| {
-            error!("Failed to query static avg in postgres: {e}");
-            NodegetError::DatabaseError(format!("Failed to query static avg in postgres: {e}"))
+            // 内部记录详细错误，向客户端返回通用错误
+            let error_id = generate_error_id();
+            error!("[ErrorID: {error_id}] Failed to query static avg in postgres: {e}");
+            NodegetError::DatabaseError(format!("Database error occurred. Reference: {error_id}"))
         })?;
 
     let json = row.map_or(Value::Array(Vec::new()), |r| r.data);

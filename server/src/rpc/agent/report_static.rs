@@ -11,6 +11,13 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ActiveValue, EntityTrait, Set};
 use serde_json::value::RawValue;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+// 生成唯一错误ID用于内部追踪
+static ERROR_COUNTER: AtomicU64 = AtomicU64::new(0);
+fn generate_error_id() -> u64 {
+    ERROR_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
 
 pub async fn report_static(
     token: String,
@@ -61,8 +68,10 @@ pub async fn report_static(
             .exec(db)
             .await
             .map_err(|e| {
-                log::error!("Database insert error: {e}");
-                NodegetError::DatabaseError(format!("Database insert error: {e}"))
+                // 内部记录详细错误，但向客户端返回通用错误
+                let error_id = generate_error_id();
+                log::error!("[ErrorID: {}] Database insert error: {e}", error_id);
+                NodegetError::DatabaseError(format!("Database error occurred. Reference: {error_id}"))
             })?;
 
         debug!("Inserted static data with id [{}]", result.last_insert_id);

@@ -2471,6 +2471,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0-rc.4",
  "simple_logger",
+ "subtle",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",

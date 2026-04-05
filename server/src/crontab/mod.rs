@@ -8,7 +8,7 @@ use crate::rpc::js_worker::service::enqueue_defined_js_worker_run;
 use chrono::{TimeZone, Utc};
 use cron::Schedule;
 use log::info;
-use log::{error, warn};
+use log::{debug, error, warn};
 use nodeget_lib::crontab::{AgentCronType, Cron, CronType, ServerCronType};
 use nodeget_lib::js_runtime::RunType;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, Set};
@@ -121,21 +121,15 @@ async fn process_crontab() {
 
         info!("Triggering cron job: {} ({})", job.name, job.id);
 
-        let active_model = crontab::ActiveModel {
-            id: Set(job.id),
-            last_run_time: Set(Some(now.timestamp_millis())),
-            ..Default::default()
-        };
-        if let Err(e) = active_model.update(db).await {
-            error!("Failed to update last_run_time for job {}: {}", job.id, e);
-            continue;
-        }
-
         let cron_type = serde_json::from_str(&format!("{}", job.cron_type))
             .map_err(|e| warn!("Invalid cron type for job {}: {}", job.id, e))
             .ok();
 
         let Some(cron_type) = cron_type else { continue };
+        
+        // 克隆需要在闭包中使用的数据
+        let job_id = job.id;
+        let job_name = job.name.clone();
 
         let job_parsed = Cron {
             id: job.id,
@@ -146,8 +140,21 @@ async fn process_crontab() {
             last_run_time: job.last_run_time,
         };
 
+        // 先更新 last_run_time，防止任务执行超时导致重复触发
+        // 注意：这是可接受的，因为 crontab 任务是幂等的
+        let active_model = crontab::ActiveModel {
+            id: Set(job.id),
+            last_run_time: Set(Some(now.timestamp_millis())),
+            ..Default::default()
+        };
+        if let Err(e) = active_model.update(db).await {
+            error!("Failed to update last_run_time for job {}: {}", job.id, e);
+            // 继续执行，不要因为记录失败而跳过任务
+        }
+
         tokio::spawn(async move {
             run_job_logic(job_parsed).await;
+            debug!("Cron job {} ({}) completed", job_name, job_id);
         });
     }
 }
