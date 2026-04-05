@@ -57,28 +57,8 @@ export const themeZhConfig = {
 					link: '/api/nodeget/index.md'
 				},
 				{
-					text: 'Hello',
-					link: '/api/nodeget/hello.md'
-				},
-				{
-					text: 'Version',
-					link: '/api/nodeget/version.md'
-				},
-				{
-					text: 'Server UUID',
-					link: '/api/nodeget/uuid.md'
-				},
-				{
-					text: '列出所有 Agent UUID',
-					link: '/api/nodeget/list_all_agent_uuid.md'
-				},
-				{
-					text: '读取 Server 配置',
-					link: '/api/nodeget/read_config.md'
-				},
-				{
-					text: '编辑 Server 配置',
-					link: '/api/nodeget/edit_config.md'
+					text: 'CRUD 操作',
+					link: '/api/nodeget/crud.md'
 				}]
 			},
 
@@ -112,12 +92,8 @@ export const themeZhConfig = {
 					link: '/api/task/agent.md'
 				},
 				{
-					text: '创建 Task',
-					link: '/api/task/create.md'
-				},
-				{
-					text: '查询 Task API',
-					link: '/api/task/query.md'
+					text: 'CRUD 操作',
+					link: '/api/task/crud.md'
 				}]
 			},
 			// Terminal
@@ -146,24 +122,8 @@ export const themeZhConfig = {
 					link: '/api/token/index.md'
 				},
 				{
-					text: '创建 Token',
-					link: '/api/token/create.md'
-				},
-				{
-					text: '获取 Token 信息',
-					link: '/api/token/get.md'
-				},
-				{
-					text: '列出所有 Token',
-					link: '/api/token/list_all_tokens.md'
-				},
-				{
-					text: '编辑 Token 权限',
-					link: '/api/token/edit.md'
-				},
-				{
-					text: '删除 Token',
-					link: '/api/token/delete.md'
+					text: 'CRUD 操作',
+					link: '/api/token/crud.md'
 				}]
 			},
 			// Crontab
@@ -175,28 +135,8 @@ export const themeZhConfig = {
 					link: '/api/crontab/index.md'
 				},
 				{
-					text: '创建 Crontab',
-					link: '/api/crontab/create.md'
-				},
-				{
-					text: '编辑 Crontab',
-					link: '/api/crontab/edit.md'
-				},
-				{
-					text: '读取 Crontab',
-					link: '/api/crontab/get.md'
-				},
-				{
-					text: '删除 Crontab',
-					link: '/api/crontab/delete.md'
-				},
-				{
-					text: '切换启用状态',
-					link: '/api/crontab/toggle_enable.md'
-				},
-				{
-					text: '设置启用状态',
-					link: '/api/crontab/set_enable.md'
+					text: 'CRUD 操作',
+					link: '/api/crontab/crud.md'
 				}]
 			},
 			// CrontabResult
@@ -208,12 +148,8 @@ export const themeZhConfig = {
 					link: '/api/crontab_result/index.md'
 				},
 				{
-					text: '查询 CrontabResult',
-					link: '/api/crontab_result/query.md'
-				},
-				{
-					text: '删除 CrontabResult',
-					link: '/api/crontab_result/delete.md'
+					text: 'CRUD 操作',
+					link: '/api/crontab_result/crud.md'
 				}]
 			},
 			// JsWorker
@@ -225,36 +161,12 @@ export const themeZhConfig = {
 					link: '/api/js_worker/index.md'
 				},
 				{
-					text: '创建脚本',
-					link: '/api/js_worker/create.md'
-				},
-				{
-					text: '读取脚本',
-					link: '/api/js_worker/read.md'
-				},
-				{
-					text: '更新脚本',
-					link: '/api/js_worker/update.md'
-				},
-				{
-					text: '删除脚本',
-					link: '/api/js_worker/delete.md'
-				},
-				{
-					text: '运行脚本',
-					link: '/api/js_worker/run.md'
+					text: 'CRUD 操作',
+					link: '/api/js_worker/crud.md'
 				},
 				{
 					text: 'HTTP 路由绑定',
 					link: '/api/js_worker/route.md'
-				},
-				{
-					text: '列出可见脚本',
-					link: '/api/js_worker/list_all_js_worker.md'
-				},
-				{
-					text: 'Runtime 池信息',
-					link: '/api/js_worker/get_rt_pool.md'
 				},
 				{
 					text: '脚本编写规范',
@@ -274,12 +186,8 @@ export const themeZhConfig = {
 					link: '/api/js_result/index.md'
 				},
 				{
-					text: '查询执行结果',
-					link: '/api/js_result/query.md'
-				},
-				{
-					text: '删除执行结果',
-					link: '/api/js_result/delete.md'
+					text: 'CRUD 操作',
+					link: '/api/js_result/crud.md'
 				}]
 			},
 			// KV
@@ -291,19 +199,7 @@ export const themeZhConfig = {
 					link: '/api/kv/index.md'
 				},
 				{
-					text: '创建命名空间',
-					link: '/api/kv/create_namespace.md'
-				},
-				{
-					text: '列出所有命名空间',
-					link: '/api/kv/list_all_namespace.md'
-				},
-				{
-					text: '批量读取键值',
-					link: '/api/kv/get_multi_value.md'
-				},
-				{
-					text: '增删改查',
+					text: 'CRUD 操作',
 					link: '/api/kv/crud.md'
 				},
 				{
