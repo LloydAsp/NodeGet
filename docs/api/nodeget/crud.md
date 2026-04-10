@@ -325,3 +325,78 @@
   "id": 1
 }
 ```
+
+## Database Storage
+
+查询数据库中各业务表的存储占用大小（字节）。
+
+### 方法
+
+调用方法名为 `nodeget-server_database_storage`，需要提供以下参数：
+
+```json
+{
+  "token": "SUPER_TOKEN_KEY:SUPER_TOKEN_SECRET" // SuperToken 字符串
+}
+```
+
+### 权限要求
+
+该方法仅允许 **SuperToken** 调用。
+
+`token` 支持以下格式之一:
+
+- `token_key:token_secret`
+- `username|password`
+
+### 返回值
+
+返回包含 `tables` 和 `total` 两个字段的对象，详细说明参考 [NodeGet 总览](./index.md)。
+
+- `tables`: 各表名到存储大小（字节）的映射，按表名字母顺序排列
+- `total`: 所有表存储大小之和（字节）
+
+查询范围为 9 张业务表，不含 `seaql_migrations`。
+
+不同数据库后端的查询方式不同:
+
+- **PostgreSQL**: 使用 `pg_total_relation_size()` 获取各表总大小（含索引和 TOAST 数据）
+- **SQLite**: 使用 `dbstat` 虚拟表查询各表占用的页面总大小
+
+### 完整示例
+
+请求:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "nodeget-server_database_storage",
+  "params": {
+    "token": "SUPER_TOKEN_KEY:SUPER_TOKEN_SECRET"
+  },
+  "id": 1
+}
+```
+
+响应:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "tables": {
+      "crontab": 4096,
+      "crontab_result": 8192,
+      "dynamic_monitoring": 16384,
+      "js_result": 4096,
+      "js_worker": 4096,
+      "kv": 8192,
+      "static_monitoring": 8192,
+      "task": 4096,
+      "token": 4096
+    },
+    "total": 61440
+  },
+  "id": 1
+}
+```

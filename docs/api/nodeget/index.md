@@ -14,6 +14,7 @@ NodeGet 是本项目的基础服务接口模块，提供服务端状态查询、
 | [list_all_agent_uuid](./crud.md#list-all-agent-uuid) | 获取所有 Agent UUID 列表 | `NodeGet::ListAllAgentUuid` |
 | [read_config](./crud.md#read-config)                 | 读取服务端配置文件原文        | SuperToken                  |
 | [edit_config](./crud.md#edit-config)                 | 写入并触发服务端配置热重载      | SuperToken                  |
+| [database_storage](./crud.md#database-storage)       | 查询数据库各表存储占用        | SuperToken                  |
 
 ## 版本信息结构体
 
@@ -58,11 +59,53 @@ NodeGet 是本项目的基础服务接口模块，提供服务端状态查询、
 
 返回的 UUID 列表是去重后按字母顺序排序的
 
+## 数据库存储信息结构体
+
+调用 `nodeget-server_database_storage` 返回的结构如下:
+
+```json
+{
+    "tables": {
+        "crontab": 4096,            // crontab 表大小（字节）
+        "crontab_result": 8192,     // crontab_result 表大小（字节）
+        "dynamic_monitoring": 16384, // dynamic_monitoring 表大小（字节）
+        "js_result": 4096,          // js_result 表大小（字节）
+        "js_worker": 4096,          // js_worker 表大小（字节）
+        "kv": 8192,                 // kv 表大小（字节）
+        "static_monitoring": 8192,  // static_monitoring 表大小（字节）
+        "task": 4096,               // task 表大小（字节）
+        "token": 4096               // token 表大小（字节）
+    },
+    "total": 61440 // 所有表大小之和（字节）
+}
+```
+
+`tables` 字段为各表名到存储大小（字节）的映射，按表名字母顺序排列
+
+`total` 字段为所有表存储大小之和
+
+查询范围包含以下 9 张业务表（不含 `seaql_migrations`）:
+
+1. `static_monitoring` - 静态监控数据表
+2. `dynamic_monitoring` - 动态监控数据表
+3. `task` - 任务数据表
+4. `token` - 令牌数据表
+5. `kv` - 键值存储表
+6. `crontab` - 定时任务表
+7. `crontab_result` - 定时任务结果表
+8. `js_worker` - JS Worker 表
+9. `js_result` - JS 执行结果表
+
+不同数据库后端的查询方式:
+
+- **PostgreSQL**: 使用 `pg_total_relation_size()` 获取各表总大小（含索引和 TOAST 数据）
+- **SQLite**: 使用 `dbstat` 虚拟表查询各表占用的页面总大小
+
 ## 注意事项
 
 `hello` / `version` / `uuid` 三个方法不需要任何鉴权，可直接调用
 
 `list_all_agent_uuid` 需要 Token 拥有 `NodeGet::ListAllAgentUuid` 权限，返回结果受 Scope 限制
 
-`read_config` / `edit_config` 仅允许 **SuperToken** 调用，`token` 支持 `token_key:token_secret` 或 `username|password`
+`read_config` / `edit_config` / `database_storage` 仅允许 **SuperToken** 调用，`token` 支持 `token_key:token_secret` 或 `username|password`
 两种格式
