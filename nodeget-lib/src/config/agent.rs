@@ -36,8 +36,6 @@ pub struct AgentConfig {
 pub struct Server {
     // 服务器名称
     pub name: String, // Only For Agent
-    // 服务器的唯一标识符
-    pub uuid: uuid::Uuid,
     // 认证令牌
     pub token: String,
     // WebSocket 连接地址
