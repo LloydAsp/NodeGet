@@ -162,7 +162,8 @@ where
 
         let message = visitor.message.take().unwrap_or_default();
 
-        // Collect span context
+        // Collect span context — strip ANSI because `FormattedFields<DefaultFields>`
+        // is stored by the console layer which has `with_ansi(true)`.
         let spans: Vec<serde_json::Value> = ctx
             .event_scope(event)
             .into_iter()
@@ -174,7 +175,7 @@ where
                     .get::<FormattedFields<format::DefaultFields>>()
                     .filter(|f| !f.is_empty())
                 {
-                    obj["fields"] = serde_json::Value::String(fields.to_string());
+                    obj["fields"] = serde_json::Value::String(strip_ansi(&fields.to_string()));
                 }
                 obj
             })
@@ -425,7 +426,8 @@ where
         event.record(&mut visitor);
         let message = visitor.message.take().unwrap_or_default();
 
-        // Collect span context
+        // Collect span context — defensive strip_ansi in case the field
+        // formatter type `N` shares storage with an ANSI-enabled layer.
         let spans: Vec<serde_json::Value> = ctx
             .event_scope()
             .into_iter()
@@ -434,7 +436,7 @@ where
                 let mut obj = serde_json::json!({ "name": span.name() });
                 let ext = span.extensions();
                 if let Some(fields) = ext.get::<FormattedFields<N>>().filter(|f| !f.is_empty()) {
-                    obj["fields"] = serde_json::Value::String(fields.to_string());
+                    obj["fields"] = serde_json::Value::String(strip_ansi(&fields.to_string()));
                 }
                 obj
             })
@@ -469,4 +471,29 @@ const fn level_ansi(level: tracing::Level) -> (&'static str, &'static str) {
         tracing::Level::DEBUG => ("\x1b[34m", RESET),
         tracing::Level::TRACE => ("\x1b[35m", RESET),
     }
+}
+
+/// Strips ANSI escape sequences (`ESC[...X`) from a string.
+///
+/// This is needed because `FormattedFields<DefaultFields>` stored by the
+/// console layer includes ANSI colour/style codes (italic, dim, reset, etc.)
+/// which must not leak into JSON file output or the memory log buffer.
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Consume the '[' and all parameter bytes until a final letter
+            if chars.next() == Some('[') {
+                for c in chars.by_ref() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }
