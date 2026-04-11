@@ -109,9 +109,9 @@ NodeGet 是本项目的基础服务接口模块，提供服务端状态查询、
 ```json
 {
     "timestamp": "2026-04-11T12:00:00.000+08:00", // ISO 8601 时间戳（含时区）
-    "level": "INFO",                               // 日志级别: TRACE / DEBUG / INFO / WARN / ERROR
+    "level": "DEBUG",                              // 日志级别: TRACE / DEBUG / INFO / WARN / ERROR
     "target": "rpc",                               // 日志 target（数据库相关统一为 "db"）
-    "message": "request received",                 // 日志消息
+    "message": "success",                          // 日志消息
     "fields": {                                    // 结构化字段（可为空对象）
         "token_key": "abc123",
         "response_len": "42"

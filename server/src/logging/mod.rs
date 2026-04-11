@@ -6,15 +6,16 @@ use nodeget_lib::config::server::LoggingConfig;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Subscriber};
 use tracing_subscriber::{
-    EnvFilter, Layer,
     fmt::{
-        self, FmtContext, FormattedFields,
+        self,
         format::{self, FormatEvent, FormatFields},
         time::{ChronoLocal, FormatTime},
+        FmtContext, FormattedFields,
     },
     layer::SubscriberExt,
     registry::LookupSpan,
     util::SubscriberInitExt,
+    EnvFilter, Layer,
 };
 
 /// Default capacity for the in-memory log ring buffer.
@@ -34,7 +35,7 @@ pub fn get_memory_logs() -> Vec<serde_json::Value> {
     MEMORY_LOG_BUFFER
         .get()
         .map(|buf| {
-            let guard = buf.lock().expect("memory log buffer poisoned");
+            let guard = buf.lock().unwrap_or_else(|e| e.into_inner());
             guard.iter().cloned().collect()
         })
         .unwrap_or_default()
@@ -50,8 +51,10 @@ pub fn get_memory_logs() -> Vec<serde_json::Value> {
 /// 如果配置了 `json_log_file`，会额外输出 JSON 格式日志到该文件，
 /// 其过滤器由 `json_log_filter`（或 fallback 到 `log_filter`）控制。
 ///
-/// 始终启用内存日志缓冲区，可通过 `memory_log_capacity` 和
-/// `memory_log_filter` 配置容量与过滤级别。
+/// 内存日志缓冲区默认启用（容量 500），`memory_log_capacity = 0` 表示禁用。
+///
+/// 注意：如果设置了 `RUST_LOG` 环境变量，它会作为 `json_log_filter` 和
+/// `memory_log_filter` 未配置时的 fallback 值，从而同时影响三个输出层。
 pub fn init(config: Option<&LoggingConfig>) {
     let default_filter = config
         .and_then(|c| c.log_filter.as_deref())
@@ -66,7 +69,8 @@ pub fn init(config: Option<&LoggingConfig>) {
         .with_target(true)
         .with_level(true)
         .with_ansi(true)
-        .event_format(NodeGetFormat::new());
+        .event_format(NodeGetFormat::new())
+        .with_filter(console_filter);
 
     // ── JSON file layer (optional) ──────────────────────────────────
     let json_layer = config
@@ -96,6 +100,7 @@ pub fn init(config: Option<&LoggingConfig>) {
                 .with_level(true)
                 .with_ansi(false)
                 .with_writer(std::sync::Mutex::new(file))
+                .event_format(JsonRemapFormat)
                 .with_filter(json_filter);
 
             Some(layer)
@@ -107,21 +112,25 @@ pub fn init(config: Option<&LoggingConfig>) {
         .unwrap_or(DEFAULT_MEMORY_LOG_CAPACITY);
     let _ = MEMORY_LOG_CAPACITY.set(capacity);
 
-    let buffer: Arc<Mutex<VecDeque<serde_json::Value>>> =
-        Arc::new(Mutex::new(VecDeque::with_capacity(capacity)));
-    let _ = MEMORY_LOG_BUFFER.set(Arc::clone(&buffer));
+    // capacity == 0 means the memory log feature is disabled
+    let memory_layer = if capacity > 0 {
+        let buffer: Arc<Mutex<VecDeque<serde_json::Value>>> =
+            Arc::new(Mutex::new(VecDeque::with_capacity(capacity)));
+        let _ = MEMORY_LOG_BUFFER.set(Arc::clone(&buffer));
 
-    let mem_filter_raw = config
-        .and_then(|c| c.memory_log_filter.as_deref())
-        .unwrap_or(&console_raw);
-    let mem_filter_expanded = expand_virtual_targets(mem_filter_raw);
-    let mem_filter = EnvFilter::new(&mem_filter_expanded);
+        let mem_filter_raw = config
+            .and_then(|c| c.memory_log_filter.as_deref())
+            .unwrap_or(&console_raw);
+        let mem_filter_expanded = expand_virtual_targets(mem_filter_raw);
+        let mem_filter = EnvFilter::new(&mem_filter_expanded);
 
-    let memory_layer = MemoryLogLayer { buffer }.with_filter(mem_filter);
+        Some(MemoryLogLayer { buffer }.with_filter(mem_filter))
+    } else {
+        None
+    };
 
     // ── Assemble subscriber ─────────────────────────────────────────
     tracing_subscriber::registry()
-        .with(console_filter)
         .with(console_layer)
         .with(json_layer)
         .with(memory_layer)
@@ -182,11 +191,16 @@ where
             "spans": spans,
         });
 
-        if let Ok(mut guard) = self.buffer.lock() {
-            let cap = MEMORY_LOG_CAPACITY
-                .get()
-                .copied()
-                .unwrap_or(DEFAULT_MEMORY_LOG_CAPACITY);
+        // Use unwrap_or_else(into_inner) to recover from Mutex poisoning
+        // instead of silently dropping the log entry.
+        let mut guard = self.buffer.lock().unwrap_or_else(|e| e.into_inner());
+        let cap = MEMORY_LOG_CAPACITY
+            .get()
+            .copied()
+            .unwrap_or(DEFAULT_MEMORY_LOG_CAPACITY);
+        // cap is guaranteed > 0 (checked in init), but defend against
+        // unexpected edge cases by requiring cap > 0.
+        if cap > 0 {
             while guard.len() >= cap {
                 guard.pop_front();
             }
@@ -255,7 +269,10 @@ impl Visit for JsonFieldVisitor {
 /// Expands virtual target aliases in an `EnvFilter`-compatible string.
 ///
 /// Currently supported aliases:
-/// - `db=<level>` → `sea_orm=<level>,sea_orm_migration=<level>,sqlx=<level>`
+/// - `db=<level>` → `db=<level>,sea_orm=<level>,sea_orm_migration=<level>,sqlx=<level>`
+///
+/// The literal `db` directive is preserved so that our own code using
+/// `target: "db"` is also matched by the filter.
 ///
 /// Directives that are not aliases are passed through unchanged.
 fn expand_virtual_targets(filter: &str) -> String {
@@ -268,10 +285,13 @@ fn expand_virtual_targets(filter: &str) -> String {
         }
 
         if let Some(level) = directive.strip_prefix("db=") {
+            // Keep literal "db=<level>" so our own `target: "db"` events match
+            parts.push(format!("db={level}"));
             parts.push(format!("sea_orm={level}"));
             parts.push(format!("sea_orm_migration={level}"));
             parts.push(format!("sqlx={level}"));
         } else if directive == "db" {
+            parts.push("db".to_string());
             parts.push("sea_orm".to_string());
             parts.push("sea_orm_migration".to_string());
             parts.push("sqlx".to_string());
@@ -308,7 +328,7 @@ struct NodeGetFormat {
 impl NodeGetFormat {
     fn new() -> Self {
         Self {
-            timer: ChronoLocal::new("%Y-%m-%d %H:%M:%S%.3f".to_string()),
+            timer: ChronoLocal::new("%Y-%m-%d %H:%M:%S%.3f%:z".to_string()),
         }
     }
 }
@@ -348,18 +368,89 @@ where
         // Fields
         ctx.format_fields(writer.by_ref(), event)?;
 
-        // Span context
+        // Span context (single-line)
         if let Some(scope) = ctx.event_scope() {
+            let mut first = true;
             for span in scope {
                 let ext = span.extensions();
-                if let Some(fields) = ext.get::<FormattedFields<N>>().filter(|f| !f.is_empty()) {
-                    write!(writer, "\n    in {} with {fields}", span.name())?;
+                let has_fields = ext
+                    .get::<FormattedFields<N>>()
+                    .is_some_and(|f| !f.is_empty());
+                if first {
+                    write!(writer, " [")?;
+                    first = false;
                 } else {
-                    write!(writer, "\n    in {}", span.name())?;
+                    write!(writer, " < ")?;
                 }
+                if has_fields {
+                    let fields = ext.get::<FormattedFields<N>>().unwrap();
+                    write!(writer, "{}{{{fields}}}", span.name())?;
+                } else {
+                    write!(writer, "{}", span.name())?;
+                }
+            }
+            if !first {
+                write!(writer, "]")?;
             }
         }
 
+        writeln!(writer)
+    }
+}
+
+// ===========================================================================
+//  JSON file format with target remapping
+// ===========================================================================
+
+/// A custom JSON event format that applies [`remap_target`] before serialising,
+/// ensuring the JSON file output is consistent with console and memory layers.
+struct JsonRemapFormat;
+
+impl<S, N> FormatEvent<S, N> for JsonRemapFormat
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &FmtContext<'_, S, N>,
+        mut writer: format::Writer<'_>,
+        event: &Event<'_>,
+    ) -> stdfmt::Result {
+        let meta = event.metadata();
+        let target = remap_target(meta.target());
+
+        // Collect fields
+        let mut visitor = JsonFieldVisitor::default();
+        event.record(&mut visitor);
+        let message = visitor.message.take().unwrap_or_default();
+
+        // Collect span context
+        let spans: Vec<serde_json::Value> = ctx
+            .event_scope()
+            .into_iter()
+            .flatten()
+            .map(|span| {
+                let mut obj = serde_json::json!({ "name": span.name() });
+                let ext = span.extensions();
+                if let Some(fields) = ext.get::<FormattedFields<N>>().filter(|f| !f.is_empty()) {
+                    obj["fields"] = serde_json::Value::String(fields.to_string());
+                }
+                obj
+            })
+            .collect();
+
+        let entry = serde_json::json!({
+            "timestamp": chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f%:z").to_string(),
+            "level": meta.level().as_str(),
+            "target": target,
+            "message": message,
+            "fields": visitor.fields,
+            "spans": spans,
+        });
+
+        // Write a single line of JSON (no trailing comma)
+        write!(writer, "{entry}")?;
         writeln!(writer)
     }
 }

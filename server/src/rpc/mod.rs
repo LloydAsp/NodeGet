@@ -59,15 +59,16 @@ impl fmt::Display for TruncatedRaw<'_> {
 /// Usage: `rpc_exec!(some_inner_call(args).await)`
 ///
 /// Emits:
-/// - `info "request received"` on entry
-/// - `info response=<truncated> "request completed"` on success
+/// - `debug response=<truncated> "request completed"` on success
 /// - `error error=<e> "request failed"` on failure
+///
+/// Note: the timing middleware already logs per-request timing at the
+/// configured level, so the macro only logs the outcome.
 macro_rules! rpc_exec {
     ($expr:expr) => {{
-        tracing::info!(target: "rpc", "request received");
         match $expr {
             Ok(raw) => {
-                tracing::info!(target: "rpc", response = %$crate::rpc::TruncatedRaw(&raw), "request completed");
+                tracing::debug!(target: "rpc", response = %$crate::rpc::TruncatedRaw(&raw), "request completed");
                 Ok(raw)
             }
             Err(e) => {

@@ -48,9 +48,8 @@ impl RpcServer for NodegetServerRpcImpl {
     async fn hello(&self) -> String {
         let span = tracing::info_span!(target: "rpc", "nodeget-server::hello");
         async {
-            tracing::info!(target: "rpc", "request received");
             let response = "NodeGet Server Is Running!".to_string();
-            tracing::info!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "rpc", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -60,9 +59,8 @@ impl RpcServer for NodegetServerRpcImpl {
     async fn version(&self) -> Value {
         let span = tracing::info_span!(target: "rpc", "nodeget-server::version");
         async {
-            tracing::info!(target: "rpc", "request received");
             let response = serde_json::to_value(NodeGetVersion::get()).unwrap();
-            tracing::info!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "rpc", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -72,12 +70,11 @@ impl RpcServer for NodegetServerRpcImpl {
     async fn uuid(&self) -> String {
         let span = tracing::info_span!(target: "rpc", "nodeget-server::uuid");
         async {
-            tracing::info!(target: "rpc", "request received");
             let response = SERVER_CONFIG
                 .get()
                 .and_then(|cfg| cfg.read().ok().map(|c| c.server_uuid.to_string()))
                 .unwrap_or_default();
-            tracing::info!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "rpc", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -96,10 +93,9 @@ impl RpcServer for NodegetServerRpcImpl {
         let (tk, un) = token_identity(&token);
         let span = tracing::info_span!(target: "rpc", "nodeget-server::read_config", token_key = tk, username = un);
         async {
-            tracing::info!(target: "rpc", "request received");
             match config_ops::read_config(token).await {
                 Ok(s) => {
-                    tracing::info!(target: "rpc", response_len = s.len(), "request completed");
+                    tracing::debug!(target: "rpc", response_len = s.len(), "request completed");
                     Ok(s)
                 }
                 Err(e) => {
@@ -116,10 +112,9 @@ impl RpcServer for NodegetServerRpcImpl {
         let (tk, un) = token_identity(&token);
         let span = tracing::info_span!(target: "rpc", "nodeget-server::edit_config", token_key = tk, username = un, config_len = config_string.len());
         async {
-            tracing::info!(target: "rpc", "request received");
             match config_ops::edit_config(token, config_string).await {
                 Ok(b) => {
-                    tracing::info!(target: "rpc", response = b, "request completed");
+                    tracing::debug!(target: "rpc", response = b, "request completed");
                     Ok(b)
                 }
                 Err(e) => {

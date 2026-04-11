@@ -32,13 +32,15 @@ log_filter = "info"
 
 # JSON 日志过滤器，语法同 RUST_LOG（可选，默认与 log_filter 相同）
 # 可独立控制写入文件的日志级别，例如文件记录更详细的日志
+# 注意：如果未设置且设置了 RUST_LOG 环境变量，则 RUST_LOG 的值也会作为此项的默认值
 # json_log_filter = "debug,rpc=trace,db=info"
 
-# 内存日志缓冲区容量（条数），默认 500
+# 内存日志缓冲区容量（条数），默认 500，设为 0 表示禁用内存日志
 # 通过 nodeget-server_log RPC 方法可查询缓冲区内容（需要 SuperToken）
 # memory_log_capacity = 500
 
 # 内存日志过滤器，语法同 RUST_LOG（可选，默认与 log_filter 相同）
+# 注意：如果未设置且设置了 RUST_LOG 环境变量，则 RUST_LOG 的值也会作为此项的默认值
 # memory_log_filter = "info"
 
 # 数据库配置

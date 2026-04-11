@@ -278,7 +278,7 @@
 ```json
 {
   "token": "SUPER_TOKEN_KEY:SUPER_TOKEN_SECRET", // SuperToken 字符串
-  "config_string": "log_level = \"info\"\\n..."   // 完整的 TOML 配置文本
+  "config_string": "ws_listener = \"0.0.0.0:3000\"\\n..."   // 完整的 TOML 配置文本
 }
 ```
 
@@ -472,9 +472,9 @@
     },
     {
       "timestamp": "2026-04-11T12:00:01.234+08:00",
-      "level": "INFO",
+      "level": "DEBUG",
       "target": "rpc",
-      "message": "request received",
+      "message": "success",
       "fields": {},
       "spans": [
         {

@@ -15,8 +15,11 @@ pub async fn run() {
     match roll_super_token().await {
         Ok((token, root_password)) => {
             info!(target: "server", "Super token rotated successfully");
-            info!(target: "server", "Super Token: {token}");
-            info!(target: "server", "Root Password: {root_password}");
+            // Print credentials to stdout only — never log them through
+            // tracing where they would end up in JSON files and the
+            // memory buffer (queryable via RPC).
+            println!("Super Token: {token}");
+            println!("Root Password: {root_password}");
         }
         Err(e) => {
             panic!("Failed to rotate super token: {e}");
