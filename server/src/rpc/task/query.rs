@@ -178,7 +178,7 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         }
 
         let mut stream = query.into_json().stream(db).await.map_err(|e| {
-            error!(target: "rpc", error = %e, "Database query error");
+            error!(target: "task", error = %e, "Database query error");
             NodegetError::DatabaseError(format!("Database query error: {e}"))
         })?;
 
@@ -204,7 +204,7 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                     }
 
                     if let Err(e) = serde_json::to_writer(&mut output_buffer, &v) {
-                        error!(target: "rpc", error = %e, "Serialization failed");
+                        error!(target: "task", error = %e, "Serialization failed");
                         return Err(NodegetError::SerializationError(format!(
                             "Serialization failed: {e}"
                         ))
@@ -212,7 +212,7 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
                     }
                 }
                 Err(e) => {
-                    error!(target: "rpc", error = %e, "Stream read error");
+                    error!(target: "task", error = %e, "Stream read error");
                     return Err(
                         NodegetError::DatabaseError(format!("Stream read error: {e}")).into(),
                     );
@@ -223,12 +223,12 @@ pub async fn query(token: String, task_data_query: TaskDataQuery) -> RpcResult<B
         output_buffer.push(b']');
 
         let json_string = String::from_utf8(output_buffer).map_err(|e| {
-            error!(target: "rpc", error = %e, "UTF8 conversion error");
+            error!(target: "task", error = %e, "UTF8 conversion error");
             NodegetError::SerializationError("UTF8 conversion error".to_owned())
         })?;
 
         let raw_value = RawValue::from_string(json_string).map_err(|e| {
-            error!(target: "rpc", error = %e, "RawValue creation error");
+            error!(target: "task", error = %e, "RawValue creation error");
             NodegetError::SerializationError("RawValue creation error".to_owned())
         })?;
 

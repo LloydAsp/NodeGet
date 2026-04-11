@@ -46,7 +46,7 @@ pub struct TokenRpcImpl;
 impl RpcServer for TokenRpcImpl {
     async fn get(&self, token: String, supertoken: Option<String>) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "token::get", token_key = tk, username = un, has_supertoken = supertoken.is_some());
+        let span = tracing::info_span!(target: "token", "token::get", token_key = tk, username = un, has_supertoken = supertoken.is_some());
         async { rpc_exec!(get::get(token, supertoken).await) }
             .instrument(span)
             .await
@@ -58,7 +58,7 @@ impl RpcServer for TokenRpcImpl {
         token_creation: TokenCreationRequest,
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&father_token);
-        let span = tracing::info_span!(target: "rpc", "token::create", token_key = tk, username = un, target_username = ?token_creation.username);
+        let span = tracing::info_span!(target: "token", "token::create", token_key = tk, username = un, target_username = ?token_creation.username);
         async { rpc_exec!(create::create(father_token, token_creation).await) }
             .instrument(span)
             .await
@@ -67,7 +67,7 @@ impl RpcServer for TokenRpcImpl {
     async fn delete(&self, token: String, target_token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
         let (target_tk, target_un) = token_identity(&target_token);
-        let span = tracing::info_span!(target: "rpc", "token::delete", token_key = tk, username = un, target_token_key = target_tk, target_username = target_un);
+        let span = tracing::info_span!(target: "token", "token::delete", token_key = tk, username = un, target_token_key = target_tk, target_username = target_un);
         async { rpc_exec!(delete::delete(token, target_token).await) }
             .instrument(span)
             .await
@@ -75,7 +75,7 @@ impl RpcServer for TokenRpcImpl {
 
     async fn list_all_tokens(&self, token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "token::list_all_tokens", token_key = tk, username = un);
+        let span = tracing::info_span!(target: "token", "token::list_all_tokens", token_key = tk, username = un);
         async { rpc_exec!(list_all_tokens::list_all_tokens(token).await) }
             .instrument(span)
             .await
@@ -89,7 +89,7 @@ impl RpcServer for TokenRpcImpl {
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
         let (target_tk, target_un) = token_identity(&target_token);
-        let span = tracing::info_span!(target: "rpc", "token::edit", token_key = tk, username = un, target_token_key = target_tk, target_username = target_un);
+        let span = tracing::info_span!(target: "token", "token::edit", token_key = tk, username = un, target_token_key = target_tk, target_username = target_un);
         async { rpc_exec!(edit::edit(token, target_token, limit).await) }
             .instrument(span)
             .await

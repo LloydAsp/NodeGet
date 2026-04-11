@@ -46,10 +46,10 @@ impl RpcHelper for NodegetServerRpcImpl {}
 #[async_trait]
 impl RpcServer for NodegetServerRpcImpl {
     async fn hello(&self) -> String {
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::hello");
+        let span = tracing::info_span!(target: "server", "nodeget-server::hello");
         async {
             let response = "NodeGet Server Is Running!".to_string();
-            tracing::debug!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "server", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -57,10 +57,10 @@ impl RpcServer for NodegetServerRpcImpl {
     }
 
     async fn version(&self) -> Value {
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::version");
+        let span = tracing::info_span!(target: "server", "nodeget-server::version");
         async {
             let response = serde_json::to_value(NodeGetVersion::get()).unwrap();
-            tracing::debug!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "server", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -68,13 +68,13 @@ impl RpcServer for NodegetServerRpcImpl {
     }
 
     async fn uuid(&self) -> String {
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::uuid");
+        let span = tracing::info_span!(target: "server", "nodeget-server::uuid");
         async {
             let response = SERVER_CONFIG
                 .get()
                 .and_then(|cfg| cfg.read().ok().map(|c| c.server_uuid.to_string()))
                 .unwrap_or_default();
-            tracing::debug!(target: "rpc", response = %response, "request completed");
+            tracing::debug!(target: "server", response = %response, "request completed");
             response
         }
         .instrument(span)
@@ -83,7 +83,7 @@ impl RpcServer for NodegetServerRpcImpl {
 
     async fn list_all_agent_uuid(&self, token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::list_all_agent_uuid", token_key = tk, username = un);
+        let span = tracing::info_span!(target: "server", "nodeget-server::list_all_agent_uuid", token_key = tk, username = un);
         async { rpc_exec!(list_all_agent_uuid::list_all_agent_uuid(token).await) }
             .instrument(span)
             .await
@@ -91,15 +91,15 @@ impl RpcServer for NodegetServerRpcImpl {
 
     async fn read_config(&self, token: String) -> RpcResult<String> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::read_config", token_key = tk, username = un);
+        let span = tracing::info_span!(target: "server", "nodeget-server::read_config", token_key = tk, username = un);
         async {
             match config_ops::read_config(token).await {
                 Ok(s) => {
-                    tracing::debug!(target: "rpc", response_len = s.len(), "request completed");
+                    tracing::debug!(target: "server", response_len = s.len(), "request completed");
                     Ok(s)
                 }
                 Err(e) => {
-                    tracing::error!(target: "rpc", error = %e, "request failed");
+                    tracing::error!(target: "server", error = %e, "request failed");
                     Err(e)
                 }
             }
@@ -110,15 +110,15 @@ impl RpcServer for NodegetServerRpcImpl {
 
     async fn edit_config(&self, token: String, config_string: String) -> RpcResult<bool> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::edit_config", token_key = tk, username = un, config_len = config_string.len());
+        let span = tracing::info_span!(target: "server", "nodeget-server::edit_config", token_key = tk, username = un, config_len = config_string.len());
         async {
             match config_ops::edit_config(token, config_string).await {
                 Ok(b) => {
-                    tracing::debug!(target: "rpc", response = b, "request completed");
+                    tracing::debug!(target: "server", response = b, "request completed");
                     Ok(b)
                 }
                 Err(e) => {
-                    tracing::error!(target: "rpc", error = %e, "request failed");
+                    tracing::error!(target: "server", error = %e, "request failed");
                     Err(e)
                 }
             }
@@ -129,7 +129,7 @@ impl RpcServer for NodegetServerRpcImpl {
 
     async fn database_storage(&self, token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::database_storage", token_key = tk, username = un);
+        let span = tracing::info_span!(target: "server", "nodeget-server::database_storage", token_key = tk, username = un);
         async { rpc_exec!(database_storage::database_storage(token).await) }
             .instrument(span)
             .await
@@ -137,7 +137,7 @@ impl RpcServer for NodegetServerRpcImpl {
 
     async fn log(&self, token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "nodeget-server::log", token_key = tk, username = un);
+        let span = tracing::info_span!(target: "server", "nodeget-server::log", token_key = tk, username = un);
         async { rpc_exec!(log_query::query_logs(token).await) }
             .instrument(span)
             .await
@@ -150,9 +150,11 @@ mod config_ops {
     };
     use crate::token::super_token::check_super_token;
     use std::path::Path;
+    use tracing::{debug, trace};
 
     // 验证配置文件路径，防止路径遍历攻击
     fn validate_config_path(config_path: &str) -> anyhow::Result<&Path> {
+        trace!(target: "server", path = %config_path, "validating config path");
         let path = Path::new(config_path);
 
         // 获取当前工作目录作为允许的基础目录
@@ -184,6 +186,7 @@ mod config_ops {
     }
 
     async fn ensure_super_token(token: &str) -> anyhow::Result<()> {
+        trace!(target: "server", "checking super token");
         let token_or_auth = TokenOrAuth::from_full_token(token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -202,6 +205,7 @@ mod config_ops {
     }
 
     pub async fn read_config(token: String) -> RpcResult<String> {
+        debug!(target: "server", "reading server config");
         let process_logic = async {
             ensure_super_token(&token).await?;
 
@@ -233,6 +237,7 @@ mod config_ops {
     }
 
     pub async fn edit_config(token: String, config_string: String) -> RpcResult<bool> {
+        debug!(target: "server", config_len = config_string.len(), "editing server config");
         let process_logic = async {
             ensure_super_token(&token).await?;
 
@@ -296,6 +301,7 @@ mod list_all_agent_uuid {
     use serde::Serialize;
     use serde_json::value::RawValue;
     use std::collections::HashSet;
+    use tracing::{debug, trace};
     use uuid::Uuid;
 
     #[derive(FromQueryResult)]
@@ -314,6 +320,7 @@ mod list_all_agent_uuid {
     }
 
     pub async fn list_all_agent_uuid(token: String) -> RpcResult<Box<RawValue>> {
+        debug!(target: "server", "listing all agent uuids");
         let process_logic = async {
             let permission = resolve_list_agent_uuid_permission(&token).await?;
 
@@ -351,6 +358,7 @@ mod list_all_agent_uuid {
     async fn resolve_list_agent_uuid_permission(
         token: &str,
     ) -> anyhow::Result<AgentUuidListPermission> {
+        trace!(target: "server", "resolving agent uuid list permission");
         let token_or_auth = TokenOrAuth::from_full_token(token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -437,6 +445,7 @@ mod list_all_agent_uuid {
     }
 
     async fn fetch_all_agent_uuids(db: &sea_orm::DatabaseConnection) -> anyhow::Result<Vec<Uuid>> {
+        debug!(target: "server", "fetching all agent uuids from db");
         // 使用 UNION 合并三个表的查询，数据库层面去重，效率最高
         // UNION 自动去重，UNION ALL 不去重
         let sql = r"
@@ -472,6 +481,7 @@ mod database_storage {
     use serde::Serialize;
     use serde_json::value::RawValue;
     use std::collections::BTreeMap;
+    use tracing::debug;
 
     /// 需要查询的表名列表（排除 `seaql_migrations`）
     const TABLE_NAMES: &[&str] = &[
@@ -501,6 +511,7 @@ mod database_storage {
     }
 
     pub async fn database_storage(token: String) -> RpcResult<Box<RawValue>> {
+        debug!(target: "server", "querying database storage");
         let process_logic = async {
             // 验证 super token 权限
             let token_or_auth = TokenOrAuth::from_full_token(&token)
@@ -554,6 +565,7 @@ mod database_storage {
 
     /// `PostgreSQL`: 使用 `pg_total_relation_size()` 查询各表总大小（含索引和 TOAST）
     async fn query_postgres(db: &DatabaseConnection) -> anyhow::Result<BTreeMap<String, i64>> {
+        debug!(target: "server", "querying postgres table sizes");
         // 使用 unnest 将表名数组展开，一次查询获取所有表的大小
         let sql = r"
             SELECT
@@ -565,7 +577,7 @@ mod database_storage {
 
         let table_names: Vec<String> = TABLE_NAMES
             .iter()
-            .map(std::string::ToString::to_string)
+            .map(ToString::to_string)
             .collect();
 
         let rows = TableSizeRow::find_by_statement(Statement::from_sql_and_values(
@@ -587,6 +599,7 @@ mod database_storage {
 
     /// `SQLite`: 使用 dbstat 虚拟表查询各表占用的页面总大小
     async fn query_sqlite(db: &DatabaseConnection) -> anyhow::Result<BTreeMap<String, i64>> {
+        debug!(target: "server", "querying sqlite table sizes");
         let mut result = BTreeMap::new();
 
         for &table_name in TABLE_NAMES {
@@ -623,8 +636,10 @@ mod log_query {
     use nodeget_lib::error::NodegetError;
     use nodeget_lib::permission::token_auth::TokenOrAuth;
     use serde_json::value::RawValue;
+    use tracing::debug;
 
     pub async fn query_logs(token: String) -> RpcResult<Box<RawValue>> {
+        debug!(target: "server", "querying in-memory logs");
         let process_logic = async {
             let token_or_auth = TokenOrAuth::from_full_token(&token)
                 .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;

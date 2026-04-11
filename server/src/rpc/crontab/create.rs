@@ -10,6 +10,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::value::RawValue;
 use std::str::FromStr;
+use tracing::debug;
 
 pub async fn create(
     token: String,
@@ -18,6 +19,7 @@ pub async fn create(
     cron_type: CronType,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab", name = %name, "processing crontab create request");
         // 1. 先验证 Token 格式（低成本操作）
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;

@@ -3,9 +3,11 @@ use crate::rpc::js_worker::auth::check_get_rt_pool_permission;
 use jsonrpsee::core::RpcResult;
 use nodeget_lib::error::NodegetError;
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn get_rt_pool(token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "js_worker", "processing get runtime pool request");
         check_get_rt_pool_permission(&token).await?;
 
         let snapshot = runtime_pool::global_pool().snapshot();

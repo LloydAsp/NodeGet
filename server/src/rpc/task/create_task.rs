@@ -68,15 +68,15 @@ pub async fn create_task(
             task_event_result: Set(None),
         };
 
-        debug!(target: "rpc", uuid = %target_uuid, "Received task");
+        debug!(target: "task", uuid = %target_uuid, "Received task");
 
         let result = task::Entity::insert(in_data).exec(db).await.map_err(|e| {
-            error!(target: "rpc", error = %e, "Database insert error");
+            error!(target: "task", error = %e, "Database insert error");
             NodegetError::DatabaseError(format!("Database insert error: {e}"))
         })?;
 
         let task_id = result.last_insert_id;
-        debug!(target: "rpc", id = task_id, "Task created");
+        debug!(target: "task", id = task_id, "Task created");
 
         let task = TaskEvent {
             task_id: task_id.cast_unsigned(),
@@ -95,10 +95,10 @@ pub async fn create_task(
                     .exec(db)
                     .await
                     .map_err(|del_err| {
-                        error!(target: "rpc", error = %del_err, "Database delete error during rollback");
+                        error!(target: "task", error = %del_err, "Database delete error during rollback");
                         NodegetError::DatabaseError(format!("Database delete error: {del_err}"))
                     });
-                error!(target: "rpc", error = %e.1, "Error sending task event");
+                error!(target: "task", error = %e.1, "Error sending task event");
                 Err(NodegetError::AgentConnectionError(format!(
                     "Error sending task event: {}",
                     e.1

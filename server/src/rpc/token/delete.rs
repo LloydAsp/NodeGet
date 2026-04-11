@@ -7,9 +7,11 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::EntityTrait;
 use serde_json::value::RawValue;
+use tracing::{debug, warn};
 
 pub async fn delete(token: String, target_token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "token", target_token = %target_token, "processing token delete request");
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -18,6 +20,7 @@ pub async fn delete(token: String, target_token: String) -> RpcResult<Box<RawVal
             .map_err(|e| NodegetError::PermissionDenied(format!("{e}")))?;
 
         if !is_super_token {
+            warn!(target: "token", "non-supertoken attempted to delete token");
             return Err(NodegetError::PermissionDenied(
                 "Only SuperToken can delete tokens".to_owned(),
             )
@@ -47,6 +50,7 @@ pub async fn delete(token: String, target_token: String) -> RpcResult<Box<RawVal
             super_record.username.as_deref() == Some(target_token_to_delete.as_str());
 
         if target_is_super_by_key || target_is_super_by_username {
+            warn!(target: "token", "attempted to delete the super token");
             return Err(
                 NodegetError::PermissionDenied("SuperToken cannot be deleted".to_owned()).into(),
             );

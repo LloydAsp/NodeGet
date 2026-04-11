@@ -13,6 +13,7 @@ use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 use serde_json::value::RawValue;
+use tracing::{debug, trace};
 
 pub async fn create(
     token: String,
@@ -28,6 +29,7 @@ pub async fn create(
         if name.is_empty() {
             return Err(NodegetError::InvalidInput("name cannot be empty".to_owned()).into());
         }
+        debug!(target: "js_worker", name = %name, "processing js_worker create request");
 
         let route_name = normalize_route_name(route_name)?;
 
@@ -79,6 +81,7 @@ pub async fn create(
             }
         }
 
+        trace!(target: "js_worker", name = %name, "submitting js module for bytecode compilation");
         let js_byte_code = tokio::task::spawn_blocking({
             let compile_input = js_script.clone();
             move || compile_js_module_to_bytecode(compile_input)

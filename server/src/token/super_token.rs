@@ -89,15 +89,15 @@ pub async fn roll_super_token() -> anyhow::Result<(String, String)> {
 
             // 插入新令牌
             let super_token_model = token::ActiveModel {
-                id: sea_orm::Set(1),
-                version: sea_orm::Set(1),
-                token_key: sea_orm::Set(token_key.clone()),
-                token_hash: sea_orm::Set(token_hash),
-                time_stamp_from: sea_orm::Set(None),
-                time_stamp_to: sea_orm::Set(None),
-                token_limit: sea_orm::Set(serde_json::json!([])),
-                username: sea_orm::Set(Some(username)),
-                password_hash: sea_orm::Set(Some(password_hash)),
+                id: Set(1),
+                version: Set(1),
+                token_key: Set(token_key.clone()),
+                token_hash: Set(token_hash),
+                time_stamp_from: Set(None),
+                time_stamp_to: Set(None),
+                token_limit: Set(serde_json::json!([])),
+                username: Set(Some(username)),
+                password_hash: Set(Some(password_hash)),
             };
 
             token::Entity::insert(super_token_model).exec(txn).await?;

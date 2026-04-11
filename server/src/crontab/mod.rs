@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use tracing::{Instrument, debug, error, info, info_span, warn};
 
 pub async fn delete_crontab_by_name(name: String) -> Result<bool, sea_orm::DbErr> {
+    debug!(target: "crontab", name = %name, "deleting crontab");
     let db = DB.get().ok_or_else(|| {
         sea_orm::DbErr::Conn(sea_orm::RuntimeErr::Internal(
             "Database not initialized".to_string(),
@@ -42,6 +43,7 @@ pub async fn set_crontab_enable_by_name(
     name: String,
     enable: bool,
 ) -> Result<Option<bool>, sea_orm::DbErr> {
+    debug!(target: "crontab", name = %name, enable = enable, "setting crontab enable");
     let db = DB.get().ok_or_else(|| {
         sea_orm::DbErr::Conn(sea_orm::RuntimeErr::Internal(
             "Database not initialized".to_string(),
@@ -66,6 +68,7 @@ pub async fn set_crontab_enable_by_name(
 }
 
 pub fn init_crontab_worker() {
+    info!(target: "crontab", "initializing crontab worker");
     static CRONTAB_WORKER_STARTED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     if CRONTAB_WORKER_STARTED.set(()).is_err() {
         return;
@@ -84,6 +87,7 @@ pub fn init_crontab_worker() {
 }
 
 async fn process_crontab() {
+    debug!(target: "crontab", "processing crontab tick");
     let Some(db) = DB.get() else {
         error!(target: "crontab", "DB not initialized");
         return;
@@ -203,6 +207,7 @@ async fn process_crontab() {
 }
 
 async fn run_job_logic(job: Cron) {
+    debug!(target: "crontab", job_name = %job.name, job_type = ?job.cron_type, "dispatching cron job");
     match job.cron_type {
         CronType::Agent(uuids, AgentCronType::Task(task_event_type)) => {
             let agent_count = uuids.len();
@@ -232,6 +237,7 @@ async fn run_job_logic(job: Cron) {
 
 /// 运行数据库清理任务并记录结果
 async fn run_cleanup_database_job(cron_id: i64, cron_name: String) {
+    info!(target: "crontab", cron_id = cron_id, cron_name = %cron_name, "running database cleanup job");
     let Some(db) = DB.get() else {
         error!(target: "crontab", cron_id, cron_name = %cron_name, "DB not initialized for cleanup job");
         return;
@@ -295,6 +301,7 @@ async fn run_cleanup_database_job(cron_id: i64, cron_name: String) {
 }
 
 async fn run_js_worker_job(cron_id: i64, cron_name: String, js_script_name: String, params: Value) {
+    info!(target: "crontab", cron_id = cron_id, cron_name = %cron_name, js_script_name = %js_script_name, "running js worker cron job");
     let Some(db) = DB.get() else {
         error!(
             target: "crontab",

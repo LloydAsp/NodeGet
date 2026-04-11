@@ -6,9 +6,11 @@ use jsonrpsee::core::RpcResult;
 use nodeget_lib::error::NodegetError;
 use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn list_all_js_worker(token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "js_worker", "processing list all js_worker request");
         let db = JsWorkerRpcImpl::get_db()?;
         let all_names: Vec<String> = js_worker::Entity::find()
             .select_only()

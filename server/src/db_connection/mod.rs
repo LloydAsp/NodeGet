@@ -13,6 +13,7 @@ use tracing::{error, info};
 // 该函数连接到数据库，应用必要的迁移，并根据数据库类型进行特定配置。
 // 如果配置无效或连接失败，则会记录错误并退出进程。
 pub async fn init_db_connection() {
+    info!(target: "db", "initializing database connection");
     let config = SERVER_CONFIG
         .get()
         .expect("Server config not initialized")

@@ -65,6 +65,10 @@ impl fmt::Display for TruncatedRaw<'_> {
 ///
 /// Note: the timing middleware already logs per-request timing at the
 /// configured level, so the macro only logs the outcome.
+///
+/// Uses `target: "rpc"` intentionally — this is cross-cutting RPC
+/// infrastructure logging, distinct from domain-specific targets
+/// (kv, token, js_worker, etc.).
 macro_rules! rpc_exec {
     ($expr:expr) => {{
         match $expr {
@@ -114,7 +118,7 @@ fn build_modules() -> RpcModule<NodegetServerRpcImpl> {
 
     let task_manager = task::TaskManager::global().clone();
 
-    let mut rpc_module = nodeget::NodegetServerRpcImpl.into_rpc();
+    let mut rpc_module = NodegetServerRpcImpl.into_rpc();
 
     rpc_module.merge(agent::AgentRpcImpl.into_rpc()).unwrap();
 

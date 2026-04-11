@@ -59,7 +59,7 @@ pub async fn report_static(
                 .map_err(|e| NodegetError::SerializationError(e.to_string()))?,
         };
 
-        debug!(target: "rpc", agent_uuid = %static_monitoring_data.uuid, "Received static data");
+        debug!(target: "monitoring", agent_uuid = %static_monitoring_data.uuid, "Received static data");
 
         let result = static_monitoring::Entity::insert(in_data)
             .exec(db)
@@ -67,13 +67,13 @@ pub async fn report_static(
             .map_err(|e| {
                 // 内部记录详细错误，但向客户端返回通用错误
                 let error_id = generate_error_id();
-                tracing::error!(target: "rpc", error_id = error_id, error = %e, "Database insert error");
+                tracing::error!(target: "monitoring", error_id = error_id, error = %e, "Database insert error");
                 NodegetError::DatabaseError(format!(
                     "Database error occurred. Reference: {error_id}"
                 ))
             })?;
 
-        debug!(target: "rpc", id = result.last_insert_id, "Inserted static data");
+        debug!(target: "monitoring", id = result.last_insert_id, "Inserted static data");
 
         let json_str = format!("{{\"id\":{}}}", result.last_insert_id);
         RawValue::from_string(json_str)

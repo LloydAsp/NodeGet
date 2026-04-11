@@ -168,7 +168,7 @@ async fn execute_query(
     capacity_hint: u64,
 ) -> anyhow::Result<Box<RawValue>> {
     let mut stream = query.stream(db).await.map_err(|e| {
-        error!(target: "rpc", error = %e, "Database query error");
+        error!(target: "monitoring", error = %e, "Database query error");
         NodegetError::DatabaseError(format!("Database query error: {e}"))
     })?;
 
@@ -194,7 +194,7 @@ async fn execute_query(
                 }
 
                 if let Err(e) = serde_json::to_writer(&mut output_buffer, &v) {
-                    error!(target: "rpc", error = %e, "Serialization failed");
+                    error!(target: "monitoring", error = %e, "Serialization failed");
                     return Err(NodegetError::SerializationError(format!(
                         "Serialization failed: {e}"
                     ))
@@ -202,7 +202,7 @@ async fn execute_query(
                 }
             }
             Err(e) => {
-                error!(target: "rpc", error = %e, "Stream read error");
+                error!(target: "monitoring", error = %e, "Stream read error");
                 return Err(NodegetError::DatabaseError(format!("Stream read error: {e}")).into());
             }
         }
@@ -211,12 +211,12 @@ async fn execute_query(
     output_buffer.push(b']');
 
     let json_string = String::from_utf8(output_buffer).map_err(|e| {
-        error!(target: "rpc", error = %e, "UTF8 conversion error");
+        error!(target: "monitoring", error = %e, "UTF8 conversion error");
         NodegetError::SerializationError("UTF8 conversion error (internal)".to_string())
     })?;
 
     let raw_value = RawValue::from_string(json_string).map_err(|e| {
-        error!(target: "rpc", error = %e, "RawValue creation error");
+        error!(target: "monitoring", error = %e, "RawValue creation error");
         NodegetError::SerializationError("RawValue creation error".to_string())
     })?;
 

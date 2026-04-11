@@ -8,12 +8,14 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::data_structure::JsWorker as JsWorkerPermission;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::value::RawValue;
+use tracing::{debug, trace};
 
 pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         if name.trim().is_empty() {
             return Err(NodegetError::InvalidInput("name cannot be empty".to_owned()).into());
         }
+        debug!(target: "js_worker", name = %name, "processing js_worker delete request");
 
         check_js_worker_permission(&token, name.as_str(), JsWorkerPermission::Delete).await?;
 
@@ -28,6 +30,7 @@ pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
             return Err(NodegetError::NotFound(format!("js_worker not found: {name}")).into());
         }
         runtime_pool::global_pool().evict_worker(name.as_str());
+        trace!(target: "js_worker", name = %name, "evicted worker from runtime pool after delete");
 
         let response = serde_json::json!({
             "success": true,

@@ -7,7 +7,7 @@ use tracing::debug;
 
 pub async fn create(token: String, name: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", namespace = %name, "Processing create namespace request");
+        debug!(target: "kv", namespace = %name, "Processing create namespace request");
 
         // 检查创建命名空间的权限
         check_kv_create_permission(&token).await?;

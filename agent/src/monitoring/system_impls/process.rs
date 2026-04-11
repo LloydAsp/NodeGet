@@ -13,7 +13,7 @@ pub fn count_processes() -> u32 {
         let result = unsafe {
             EnumProcesses(
                 process_ids.as_mut_ptr().cast(),
-                (mut_process_ids_capacity * std::mem::size_of::<u32>()) as u32,
+                (mut_process_ids_capacity * size_of::<u32>()) as u32,
                 &raw mut bytes_returned,
             )
         };

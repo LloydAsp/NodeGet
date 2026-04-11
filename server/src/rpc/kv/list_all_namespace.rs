@@ -7,7 +7,7 @@ use tracing::debug;
 
 pub async fn list_all_namespace(token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", "Processing list_all_namespace request");
+        debug!(target: "kv", "Processing list_all_namespace request");
 
         let permission = resolve_kv_list_namespace_permission(&token).await?;
         let namespaces = list_all_namespaces().await?;

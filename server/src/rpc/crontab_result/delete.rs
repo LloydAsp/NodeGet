@@ -6,9 +6,11 @@ use jsonrpsee::core::RpcResult;
 use nodeget_lib::error::NodegetError;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn delete(token: String, delete_params: CrontabResultDelete) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab_result", before_time = delete_params.before_time, cron_name = ?delete_params.cron_name, "processing crontab_result delete request");
         let db = DB
             .get()
             .ok_or_else(|| NodegetError::DatabaseError("DB not initialized".to_owned()))?;

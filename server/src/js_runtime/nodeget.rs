@@ -3,8 +3,10 @@ use crate::rpc::get_modules;
 use futures::future::join_all;
 use rquickjs::Error;
 use std::result::Result as StdResult;
+use tracing::{debug, trace};
 
 async fn raw_single_request(json: &str) -> StdResult<String, Error> {
+    trace!(target: "js_runtime", "processing raw JSON-RPC request from JS");
     let rpc_module = get_modules();
 
     let (resp, _stream) = match rpc_module.raw_json_request(json, 16).await {
@@ -18,6 +20,7 @@ async fn raw_single_request(json: &str) -> StdResult<String, Error> {
 }
 
 pub async fn js_nodeget(json: String) -> StdResult<String, Error> {
+    debug!(target: "js_runtime", "handling JS nodeget RPC call");
     let trimmed = json.trim();
 
     // Batch request: JSON array of JSON-RPC requests

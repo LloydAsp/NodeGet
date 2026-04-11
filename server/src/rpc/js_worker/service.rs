@@ -9,7 +9,7 @@ use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 use std::time::Duration;
-use tracing::error;
+use tracing::{debug, error, trace};
 
 pub async fn enqueue_defined_js_worker_run(
     js_script_name: String,
@@ -21,6 +21,7 @@ pub async fn enqueue_defined_js_worker_run(
     if script_name.is_empty() {
         return Err(NodegetError::InvalidInput("js_script_name cannot be empty".to_owned()).into());
     }
+    debug!(target: "js_worker", script_name = %script_name, run_type = ?run_type, "enqueuing defined js_worker run (bytecode)");
 
     let db = JsWorkerRpcImpl::get_db()?.clone();
     let model = js_worker::Entity::find()
@@ -59,6 +60,7 @@ pub async fn enqueue_defined_js_worker_run(
     .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
 
     let js_result_id = insert_result.last_insert_id;
+    trace!(target: "js_worker", js_result_id = js_result_id, worker = %worker_name, "spawning bytecode execution task");
 
     tokio::spawn(async move {
         let run_outcome = runtime_pool::init_global_pool()
@@ -96,7 +98,7 @@ pub async fn enqueue_defined_js_worker_run(
             .exec(&db)
             .await
         {
-            error!(target: "rpc", js_result_id = js_result_id, worker = %worker_name, error = %e, "Failed to update js_result");
+            error!(target: "js_worker", js_result_id = js_result_id, worker = %worker_name, error = %e, "Failed to update js_result");
         }
     });
 
@@ -113,6 +115,7 @@ pub async fn run_inline_call_and_record_result(
     if script_name.is_empty() {
         return Err(NodegetError::InvalidInput("js_worker_name cannot be empty".to_owned()).into());
     }
+    debug!(target: "js_worker", script_name = %script_name, timeout_sec = ?timeout_sec, inline_caller = ?inline_caller, "running inline call and recording result");
 
     let timeout_duration = match timeout_sec {
         Some(value) if value.is_finite() && value > 0.0 => Some(Duration::from_secs_f64(value)),
@@ -224,7 +227,7 @@ pub async fn run_inline_call_and_record_result(
         .exec(&db)
         .await
     {
-        error!(target: "rpc", js_result_id = js_result_id, worker = %worker_name, error = %e, "Failed to update js_result for inline_call");
+        error!(target: "js_worker", js_result_id = js_result_id, worker = %worker_name, error = %e, "Failed to update js_result for inline_call");
     }
 
     return_value
@@ -240,6 +243,7 @@ pub async fn enqueue_source_js_worker_run(
     if script_name.is_empty() {
         return Err(NodegetError::InvalidInput("js_script_name cannot be empty".to_owned()).into());
     }
+    debug!(target: "js_worker", script_name = %script_name, run_type = ?run_type, "enqueuing source mode js_worker run");
 
     let db = JsWorkerRpcImpl::get_db()?.clone();
     let model = js_worker::Entity::find()
@@ -275,6 +279,7 @@ pub async fn enqueue_source_js_worker_run(
     let js_result_id = insert_result.last_insert_id;
 
     let worker_name_for_log = worker_name.clone();
+    trace!(target: "js_worker", js_result_id = js_result_id, worker = %worker_name_for_log, "spawning source mode execution task");
     tokio::spawn(async move {
         let worker_name_in_spawn = worker_name_for_log.clone();
         let run_outcome: Result<Value, String> = match tokio::task::spawn_blocking(move || {
@@ -314,7 +319,7 @@ pub async fn enqueue_source_js_worker_run(
             .exec(&db)
             .await
         {
-            error!(target: "rpc", js_result_id = js_result_id, worker = %worker_name_in_spawn, error = %e, "Failed to update js_result for source mode worker");
+            error!(target: "js_worker", js_result_id = js_result_id, worker = %worker_name_in_spawn, error = %e, "Failed to update js_result for source mode worker");
         }
     });
 

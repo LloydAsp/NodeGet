@@ -9,6 +9,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::EntityTrait;
 use serde::Serialize;
 use serde_json::value::RawValue;
+use tracing::{debug, warn};
 
 #[derive(Serialize)]
 struct ListAllTokensResponse {
@@ -17,6 +18,7 @@ struct ListAllTokensResponse {
 
 pub async fn list_all_tokens(token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "token", "processing list all tokens request");
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -25,6 +27,7 @@ pub async fn list_all_tokens(token: String) -> RpcResult<Box<RawValue>> {
             .map_err(|e| NodegetError::PermissionDenied(format!("{e}")))?;
 
         if !is_super_token {
+            warn!(target: "token", "non-supertoken attempted to list all tokens");
             return Err(NodegetError::PermissionDenied(
                 "Only SuperToken can list all tokens".to_owned(),
             )

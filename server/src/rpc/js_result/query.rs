@@ -9,6 +9,7 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::js_result::query::{JsResultDataQuery, JsResultQueryCondition};
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 fn apply_filter_to_select(
     mut select: sea_orm::Select<js_result::Entity>,
@@ -78,6 +79,7 @@ fn apply_filter_to_select(
 
 pub async fn query(token: String, query: JsResultDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "js_result", condition_count = query.condition.len(), "processing js_result query request");
         let db = JsResultRpcImpl::get_db()?;
 
         let mut select = js_result::Entity::find();

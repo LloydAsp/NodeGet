@@ -2,6 +2,7 @@ use crate::token::get::check_token_limit;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::data_structure::{CrontabResult, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
+use tracing::{trace, warn};
 
 /// 检查是否有 `CrontabResult` 读权限
 ///
@@ -18,6 +19,7 @@ pub async fn check_crontab_result_read_permission(
     token: &str,
     cron_name: &str,
 ) -> anyhow::Result<()> {
+    trace!(target: "crontab_result", cron_name = %cron_name, "checking crontab_result read permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -46,6 +48,7 @@ pub async fn check_crontab_result_read_permission(
         return Ok(());
     }
 
+    warn!(target: "crontab_result", cron_name = %cron_name, "read permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No read permission for crontab_result with cron_name '{cron_name}'"
     ))
@@ -67,6 +70,7 @@ pub async fn check_crontab_result_delete_permission(
     token: &str,
     cron_name: Option<&str>,
 ) -> anyhow::Result<()> {
+    trace!(target: "crontab_result", cron_name = ?cron_name, "checking crontab_result delete permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -102,6 +106,7 @@ pub async fn check_crontab_result_delete_permission(
         }
     }
 
+    warn!(target: "crontab_result", cron_name = ?cron_name, "delete permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No delete permission for crontab_result with cron_name '{}'",
         cron_name.unwrap_or("*")

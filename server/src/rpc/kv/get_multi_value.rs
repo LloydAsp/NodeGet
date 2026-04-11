@@ -22,7 +22,7 @@ pub async fn get_multi_value(
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         debug!(
-            target: "rpc",
+            target: "kv",
             count = namespace_key.len(),
             "Processing get_multi_value request"
         );

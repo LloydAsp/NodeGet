@@ -7,7 +7,7 @@ use tracing::debug;
 
 pub async fn delete_key(token: String, namespace: String, key: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", namespace = %namespace, key = %key, "Processing delete_key request");
+        debug!(target: "kv", namespace = %namespace, key = %key, "Processing delete_key request");
 
         // 检查删除权限
         check_kv_delete_permission(&token, &namespace, &key).await?;

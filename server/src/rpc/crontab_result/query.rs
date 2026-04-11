@@ -6,9 +6,11 @@ use nodeget_lib::crontab_result::query::{CrontabResultDataQuery, CrontabResultQu
 use nodeget_lib::error::NodegetError;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn query(token: String, query: CrontabResultDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab_result", condition_count = query.condition.len(), "processing crontab_result query request");
         let db = DB
             .get()
             .ok_or_else(|| NodegetError::DatabaseError("DB not initialized".to_owned()))?;

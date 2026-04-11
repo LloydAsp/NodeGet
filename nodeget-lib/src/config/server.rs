@@ -32,7 +32,12 @@ pub struct ServerConfig {
 /// 日志配置
 ///
 /// `log_filter` / `json_log_filter` 的语法与 `RUST_LOG` 环境变量一致，
-/// 例如 `"info,rpc=debug,db=warn"`。
+/// 例如 `"info,kv=debug,monitoring=trace,db=warn"`。
+///
+/// 可用的 target:
+///   `server`, `rpc`, `db`, `kv`, `monitoring`, `task`, `token`,
+///   `js_worker`, `js_result`, `crontab`, `crontab_result`,
+///   `js_runtime`, `terminal`
 ///
 /// 虚拟 target `db` 会自动展开为
 /// `sea_orm=<level>,sea_orm_migration=<level>,sqlx=<level>`。

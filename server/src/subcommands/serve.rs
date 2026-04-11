@@ -67,7 +67,7 @@ pub async fn run(config: &nodeget_lib::config::server::ServerConfig) {
 
                         if req.method() == axum::http::Method::GET {
                             return axum::response::Response::builder()
-                                .status(axum::http::StatusCode::OK)
+                                .status(StatusCode::OK)
                                 .header(
                                     axum::http::header::CONTENT_TYPE,
                                     "text/html; charset=utf-8",
@@ -144,11 +144,11 @@ pub async fn run(config: &nodeget_lib::config::server::ServerConfig) {
     }
 
     let listener =
-        tokio::net::TcpListener::bind(config.ws_listener.parse::<std::net::SocketAddr>().unwrap())
+        tokio::net::TcpListener::bind(config.ws_listener.parse::<SocketAddr>().unwrap())
             .await
             .unwrap();
 
-    let serve_future = std::future::IntoFuture::into_future(axum::serve(
+    let serve_future = IntoFuture::into_future(axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     ));
@@ -371,7 +371,7 @@ async fn handle_js_worker_route(
     };
 
     let env = model.env.unwrap_or_else(|| serde_json::json!({}));
-    let run_result = crate::js_runtime::runtime_pool::init_global_pool()
+    let run_result = runtime_pool::init_global_pool()
         .execute_script(
             model.name.as_str(),
             bytecode,

@@ -99,7 +99,7 @@ pub fn init(config: Option<&LoggingConfig>) {
                 .with_target(true)
                 .with_level(true)
                 .with_ansi(false)
-                .with_writer(std::sync::Mutex::new(file))
+                .with_writer(Mutex::new(file))
                 .event_format(JsonRemapFormat)
                 .with_filter(json_filter);
 
@@ -141,7 +141,7 @@ pub fn init(config: Option<&LoggingConfig>) {
 //  In-memory ring-buffer layer
 // ===========================================================================
 
-/// A [`tracing_subscriber::Layer`] that serialises each event to JSON and
+/// A [`Layer`] that serialises each event to JSON and
 /// stores it in a bounded ring buffer ([`VecDeque`]).
 ///
 /// When the buffer reaches capacity the oldest entry is evicted.
@@ -171,7 +171,7 @@ where
                 let mut obj = serde_json::json!({ "name": span.name() });
                 let ext = span.extensions();
                 if let Some(fields) = ext
-                    .get::<FormattedFields<tracing_subscriber::fmt::format::DefaultFields>>()
+                    .get::<FormattedFields<format::DefaultFields>>()
                     .filter(|f| !f.is_empty())
                 {
                     obj["fields"] = serde_json::Value::String(fields.to_string());
@@ -220,14 +220,24 @@ struct JsonFieldVisitor {
 }
 
 impl Visit for JsonFieldVisitor {
-    fn record_debug(&mut self, field: &Field, value: &dyn stdfmt::Debug) {
-        let val = format!("{value:?}");
-        if field.name() == "message" {
-            self.message = Some(val);
-        } else {
-            self.fields
-                .insert(field.name().to_string(), serde_json::Value::String(val));
-        }
+    fn record_f64(&mut self, field: &Field, value: f64) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_i64(&mut self, field: &Field, value: i64) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_u64(&mut self, field: &Field, value: u64) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::json!(value));
+    }
+
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        self.fields
+            .insert(field.name().to_string(), serde_json::json!(value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
@@ -241,24 +251,14 @@ impl Visit for JsonFieldVisitor {
         }
     }
 
-    fn record_i64(&mut self, field: &Field, value: i64) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::json!(value));
-    }
-
-    fn record_u64(&mut self, field: &Field, value: u64) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::json!(value));
-    }
-
-    fn record_f64(&mut self, field: &Field, value: f64) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::json!(value));
-    }
-
-    fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields
-            .insert(field.name().to_string(), serde_json::json!(value));
+    fn record_debug(&mut self, field: &Field, value: &dyn stdfmt::Debug) {
+        let val = format!("{value:?}");
+        if field.name() == "message" {
+            self.message = Some(val);
+        } else {
+            self.fields
+                .insert(field.name().to_string(), serde_json::Value::String(val));
+        }
     }
 }
 

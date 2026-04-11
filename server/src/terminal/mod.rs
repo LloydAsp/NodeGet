@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 // 终端消息通道缓冲区大小 - 防止内存耗尽
@@ -74,6 +74,7 @@ pub async fn terminal_ws_handler(
     Query(params): Query<TerminalParams>,
     State(state): State<TerminalState>,
 ) -> impl IntoResponse {
+    debug!(target: "terminal", agent_uuid = %params.agent_uuid, "WebSocket upgrade request");
     ws.on_upgrade(move |socket| handle_socket(socket, params, state))
 }
 
@@ -84,6 +85,7 @@ pub async fn terminal_ws_handler(
 // * `params` - 终端参数
 // * `state` - 终端状态
 async fn handle_socket(socket: WebSocket, params: TerminalParams, state: TerminalState) {
+    debug!(target: "terminal", "routing terminal connection");
     let TerminalParams {
         agent_uuid,
         task_id,
@@ -325,6 +327,7 @@ async fn handle_user(
 }
 
 async fn reject_with_error(mut socket: WebSocket, error_id: i32, message: &str) {
+    warn!(target: "terminal", error_id = error_id, message = %message, "rejecting WebSocket with error");
     let error_json = generate_error_message(error_id, message);
     if let Err(e) = socket
         .send(Message::Text(Utf8Bytes::from(error_json.to_string())))

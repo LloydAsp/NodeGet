@@ -63,7 +63,7 @@ impl RpcServer for CrontabRpcImpl {
         cron_type: CronType,
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "crontab::create", token_key = tk, username = un, name = %name, cron_expression = %cron_expression, cron_type = ?cron_type);
+        let span = tracing::info_span!(target: "crontab", "crontab::create", token_key = tk, username = un, name = %name, cron_expression = %cron_expression, cron_type = ?cron_type);
         async { rpc_exec!(create::create(token, name, cron_expression, cron_type).await) }
             .instrument(span)
             .await
@@ -77,7 +77,7 @@ impl RpcServer for CrontabRpcImpl {
         cron_type: CronType,
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "crontab::edit", token_key = tk, username = un, name = %name, cron_expression = %cron_expression, cron_type = ?cron_type);
+        let span = tracing::info_span!(target: "crontab", "crontab::edit", token_key = tk, username = un, name = %name, cron_expression = %cron_expression, cron_type = ?cron_type);
         async { rpc_exec!(edit::edit(token, name, cron_expression, cron_type).await) }
             .instrument(span)
             .await
@@ -86,7 +86,7 @@ impl RpcServer for CrontabRpcImpl {
     async fn get(&self, token: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
         let span =
-            tracing::info_span!(target: "rpc", "crontab::get", token_key = tk, username = un);
+            tracing::info_span!(target: "crontab", "crontab::get", token_key = tk, username = un);
         async { rpc_exec!(get::get(token).await) }
             .instrument(span)
             .await
@@ -94,7 +94,7 @@ impl RpcServer for CrontabRpcImpl {
 
     async fn delete(&self, token: String, name: String) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "crontab::delete", token_key = tk, username = un, name = %name);
+        let span = tracing::info_span!(target: "crontab", "crontab::delete", token_key = tk, username = un, name = %name);
         async { rpc_exec!(delete::delete(token, name).await) }
             .instrument(span)
             .await
@@ -107,7 +107,7 @@ impl RpcServer for CrontabRpcImpl {
         enable: bool,
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "crontab::set_enable", token_key = tk, username = un, name = %name, enable = enable);
+        let span = tracing::info_span!(target: "crontab", "crontab::set_enable", token_key = tk, username = un, name = %name, enable = enable);
         async { rpc_exec!(set_enable::set_enable(token, name, enable).await) }
             .instrument(span)
             .await

@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 use tokio::sync::oneshot;
-use tracing::{debug, warn};
+use tracing::{debug, info, trace, warn};
 
 const RUNTIME_CLEAN_TIME_NONE: i64 = -1;
 const CLEANUP_INTERVAL_MS: u64 = 1_000;
@@ -59,6 +59,7 @@ impl RuntimeWorkerHandle {
         params: Value,
         env: Value,
     ) -> anyhow::Result<Value> {
+        trace!(target: "js_runtime", "sending execute command to worker");
         self.active_requests.fetch_add(1, Ordering::SeqCst);
 
         let send_result = (|| {
@@ -124,6 +125,7 @@ impl JsRuntimePool {
         env: Value,
         runtime_clean_time_ms: Option<i64>,
     ) -> anyhow::Result<Value> {
+        debug!(target: "js_runtime", script_name = %script_name, run_type = ?run_type, "executing script on pool");
         let worker = self.get_or_init_worker(script_name)?;
         worker.set_runtime_clean_time(runtime_clean_time_ms);
         worker.execute(bytecode, run_type, params, env).await
@@ -131,6 +133,7 @@ impl JsRuntimePool {
 
     #[allow(clippy::significant_drop_tightening)]
     fn get_or_init_worker(&self, script_name: &str) -> anyhow::Result<Arc<RuntimeWorkerHandle>> {
+        debug!(target: "js_runtime", script_name = %script_name, "getting or initializing worker");
         {
             let workers = self.workers.read().map_err(|e| anyhow::anyhow!("{e}"))?;
             if let Some(worker) = workers.get(script_name).cloned() {
@@ -301,6 +304,7 @@ pub fn global_pool() -> &'static Arc<JsRuntimePool> {
 }
 
 pub fn init_global_pool() -> &'static Arc<JsRuntimePool> {
+    info!(target: "js_runtime", "initializing global JS runtime pool");
     let pool = global_pool();
 
     if !CLEANUP_LOOP_STARTED.swap(true, Ordering::SeqCst) {
@@ -317,6 +321,7 @@ pub fn init_global_pool() -> &'static Arc<JsRuntimePool> {
 }
 
 fn spawn_worker(script_name: &str) -> anyhow::Result<Arc<RuntimeWorkerHandle>> {
+    debug!(target: "js_runtime", script_name = %script_name, "spawning new worker thread");
     let script_name = script_name.to_owned();
     let (tx, rx) = std::sync::mpsc::channel::<WorkerCommand>();
 
@@ -340,6 +345,7 @@ fn spawn_worker(script_name: &str) -> anyhow::Result<Arc<RuntimeWorkerHandle>> {
 }
 
 fn worker_loop(script_name: String, receiver: std::sync::mpsc::Receiver<WorkerCommand>) {
+    trace!(target: "js_runtime", script_name = %script_name, "worker loop started");
     let host_rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -399,6 +405,7 @@ async fn execute_on_worker(
     params: Value,
     env: Value,
 ) -> Result<Value, Error> {
+    trace!(target: "js_runtime", script_name = %script_name, "executing on worker");
     if runtime_state.is_none() {
         *runtime_state = Some(create_runtime_state().await?);
     }
@@ -605,6 +612,7 @@ async fn execute_on_worker(
 
 #[allow(clippy::future_not_send)]
 async fn create_runtime_state() -> Result<RuntimeState, Error> {
+    trace!(target: "js_runtime", "creating new runtime state");
     let rt = AsyncRuntime::new()?;
     rt.set_memory_limit(JS_RT_MEMORY_LIMIT_BYTES).await;
     let ctx = AsyncContext::full(&rt).await?;

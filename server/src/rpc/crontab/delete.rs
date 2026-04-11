@@ -9,9 +9,11 @@ use nodeget_lib::permission::data_structure::{Crontab as CrontabPermission, Perm
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab", name = %name, "processing crontab delete request");
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 

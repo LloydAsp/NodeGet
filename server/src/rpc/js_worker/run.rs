@@ -6,6 +6,7 @@ use nodeget_lib::js_runtime::{CompileMode, RunType};
 use nodeget_lib::permission::data_structure::JsWorker as JsWorkerPermission;
 use serde_json::Value;
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn run(
     token: String,
@@ -26,6 +27,8 @@ pub async fn run(
                 NodegetError::InvalidInput("js_script_name cannot be empty".to_owned()).into(),
             );
         }
+
+        debug!(target: "js_worker", script_name = %script_name, run_type = ?run_type, compile_mode = ?compile_mode, "processing js_worker run request");
 
         check_js_worker_permission(
             &token,

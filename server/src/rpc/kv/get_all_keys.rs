@@ -7,7 +7,7 @@ use tracing::debug;
 
 pub async fn get_all_keys(token: String, namespace: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", namespace = %namespace, "Processing get_all_keys request");
+        debug!(target: "kv", namespace = %namespace, "Processing get_all_keys request");
 
         // 检查列出 keys 的权限
         check_kv_list_keys_permission(&token, &namespace).await?;

@@ -39,7 +39,7 @@ pub async fn upload_task_result(
                 .one(db)
                 .await
                 .map_err(|e| {
-                    error!(target: "rpc", error = %e, "Database query error");
+                    error!(target: "task", error = %e, "Database query error");
                     NodegetError::DatabaseError(format!("Database query error: {e}"))
                 })?;
 
@@ -76,7 +76,7 @@ pub async fn upload_task_result(
             .one(db)
             .await
             .map_err(|e| {
-                error!(target: "rpc", error = %e, "Database query error");
+                error!(target: "task", error = %e, "Database query error");
                 NodegetError::DatabaseError(format!("Database query error: {e}"))
             })?
             .ok_or_else(|| {
@@ -127,7 +127,7 @@ pub async fn upload_task_result(
             .exec(db)
             .await
             .map_err(|e| {
-                error!(target: "rpc", error = %e, "Database update error");
+                error!(target: "task", error = %e, "Database update error");
                 NodegetError::DatabaseError(format!("Database update error: {e}"))
             })?;
 
@@ -139,7 +139,7 @@ pub async fn upload_task_result(
         }
 
         debug!(
-            target: "rpc",
+            target: "task",
             task_id = task_response.task_id,
             auth_type = if token_or_auth.is_auth() { "Auth" } else { "Token" },
             "Task result uploaded"

@@ -9,12 +9,14 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::data_structure::JsWorker as JsWorkerPermission;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn read(token: String, name: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
         if name.trim().is_empty() {
             return Err(NodegetError::InvalidInput("name cannot be empty".to_owned()).into());
         }
+        debug!(target: "js_worker", name = %name, "processing js_worker read request");
 
         check_js_worker_permission(&token, name.as_str(), JsWorkerPermission::Read).await?;
 

@@ -28,7 +28,7 @@ impl RpcHelper for JsResultRpcImpl {}
 impl RpcServer for JsResultRpcImpl {
     async fn query(&self, token: String, query: JsResultDataQuery) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "js-result::query", token_key = tk, username = un, query = ?query);
+        let span = tracing::info_span!(target: "js_result", "js-result::query", token_key = tk, username = un, query = ?query);
         async { rpc_exec!(query::query(token, query).await) }
             .instrument(span)
             .await
@@ -36,7 +36,7 @@ impl RpcServer for JsResultRpcImpl {
 
     async fn delete(&self, token: String, query: JsResultDataQuery) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
-        let span = tracing::info_span!(target: "rpc", "js-result::delete", token_key = tk, username = un, query = ?query);
+        let span = tracing::info_span!(target: "js_result", "js-result::delete", token_key = tk, username = un, query = ?query);
         async { rpc_exec!(delete::delete(token, query).await) }
             .instrument(span)
             .await

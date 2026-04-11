@@ -67,7 +67,7 @@ pub async fn report_dynamic(
                 .map_err(|e| NodegetError::SerializationError(e.to_string()))?,
         };
 
-        debug!(target: "rpc", agent_uuid = %dynamic_monitoring_data.uuid, "Received dynamic data");
+        debug!(target: "monitoring", agent_uuid = %dynamic_monitoring_data.uuid, "Received dynamic data");
 
         let result = dynamic_monitoring::Entity::insert(in_data)
             .exec(db)
@@ -75,13 +75,13 @@ pub async fn report_dynamic(
             .map_err(|e| {
                 // 内部记录详细错误，向客户端返回通用错误
                 let error_id = generate_error_id();
-                tracing::error!(target: "rpc", error_id = error_id, error = %e, "Database insert error");
+                tracing::error!(target: "monitoring", error_id = error_id, error = %e, "Database insert error");
                 NodegetError::DatabaseError(format!(
                     "Database error occurred. Reference: {error_id}"
                 ))
             })?;
 
-        debug!(target: "rpc", id = result.last_insert_id, "Inserted dynamic data");
+        debug!(target: "monitoring", id = result.last_insert_id, "Inserted dynamic data");
 
         let json_str = format!("{{\"id\":{}}}", result.last_insert_id);
         RawValue::from_string(json_str)

@@ -4,6 +4,7 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::data_structure::{Kv, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use std::collections::HashSet;
+use tracing::{debug, trace, warn};
 
 pub enum KvNamespaceListPermission {
     All,
@@ -19,6 +20,7 @@ pub enum KvNamespaceListPermission {
 /// 如果 key 合法返回 Ok(()，否则返回错误
 pub fn validate_key(key: &str) -> anyhow::Result<()> {
     if key.contains('*') {
+        warn!(target: "kv", key = %key, "key validation failed: contains '*'");
         return Err(
             NodegetError::InvalidInput("Key cannot contain '*' character".to_owned()).into(),
         );
@@ -34,6 +36,7 @@ pub fn validate_key(key: &str) -> anyhow::Result<()> {
 /// - `*`
 pub fn validate_key_pattern(key: &str) -> anyhow::Result<()> {
     if key.is_empty() {
+        warn!(target: "kv", "key pattern validation failed: empty key");
         return Err(NodegetError::InvalidInput("Key cannot be empty".to_owned()).into());
     }
 
@@ -43,6 +46,7 @@ pub fn validate_key_pattern(key: &str) -> anyhow::Result<()> {
 
     let star_count = key.chars().filter(|c| *c == '*').count();
     if (star_count != 1) || !key.ends_with('*') {
+        warn!(target: "kv", key = %key, "key pattern validation failed: invalid wildcard");
         return Err(NodegetError::InvalidInput(
             "Wildcard key must contain exactly one '*' and it must be at the end".to_owned(),
         )
@@ -66,6 +70,7 @@ pub async fn check_kv_read_permission(
     namespace: &str,
     key: &str,
 ) -> anyhow::Result<()> {
+    trace!(target: "kv", namespace = %namespace, key = %key, "checking read permission");
     // 验证 key 不包含非法字符
     validate_key(key)?;
 
@@ -97,6 +102,7 @@ pub async fn check_kv_read_permission(
         return Ok(());
     }
 
+    warn!(target: "kv", namespace = %namespace, key = %key, "read permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No read permission for key '{key}' in namespace '{namespace}'"
     ))
@@ -117,6 +123,7 @@ pub async fn check_kv_read_permission_with_pattern(
     namespace: &str,
     key_pattern: &str,
 ) -> anyhow::Result<()> {
+    trace!(target: "kv", namespace = %namespace, key_pattern = %key_pattern, "checking read permission with pattern");
     validate_key_pattern(key_pattern)?;
 
     let token_or_auth = TokenOrAuth::from_full_token(token)
@@ -144,6 +151,7 @@ pub async fn check_kv_read_permission_with_pattern(
         return Ok(());
     }
 
+    warn!(target: "kv", namespace = %namespace, key_pattern = %key_pattern, "read permission denied for pattern");
     Err(NodegetError::PermissionDenied(format!(
         "No read permission for key '{key_pattern}' in namespace '{namespace}'"
     ))
@@ -164,6 +172,7 @@ pub async fn check_kv_write_permission(
     namespace: &str,
     key: &str,
 ) -> anyhow::Result<()> {
+    trace!(target: "kv", namespace = %namespace, key = %key, "checking write permission");
     // 验证 key 不包含非法字符
     validate_key(key)?;
 
@@ -195,6 +204,7 @@ pub async fn check_kv_write_permission(
         return Ok(());
     }
 
+    warn!(target: "kv", namespace = %namespace, key = %key, "write permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No write permission for key '{key}' in namespace '{namespace}'"
     ))
@@ -215,6 +225,7 @@ pub async fn check_kv_delete_permission(
     namespace: &str,
     key: &str,
 ) -> anyhow::Result<()> {
+    trace!(target: "kv", namespace = %namespace, key = %key, "checking delete permission");
     // 验证 key 不包含非法字符
     validate_key(key)?;
 
@@ -250,6 +261,7 @@ pub async fn check_kv_delete_permission(
         return Ok(());
     }
 
+    warn!(target: "kv", namespace = %namespace, key = %key, "delete permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No delete permission for key '{key}' in namespace '{namespace}'"
     ))
@@ -265,6 +277,7 @@ pub async fn check_kv_delete_permission(
 /// # 返回值
 /// 如果有权限返回 Ok(()，否则返回错误
 pub async fn check_kv_list_keys_permission(token: &str, namespace: &str) -> anyhow::Result<()> {
+    trace!(target: "kv", namespace = %namespace, "checking list keys permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -280,6 +293,7 @@ pub async fn check_kv_list_keys_permission(token: &str, namespace: &str) -> anyh
         return Ok(());
     }
 
+    warn!(target: "kv", namespace = %namespace, "list keys permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "No permission to list keys in namespace '{namespace}'"
     ))
@@ -295,6 +309,7 @@ pub async fn check_kv_list_keys_permission(token: &str, namespace: &str) -> anyh
 pub async fn resolve_kv_list_namespace_permission(
     token: &str,
 ) -> anyhow::Result<KvNamespaceListPermission> {
+    trace!(target: "kv", "checking list namespace permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -303,6 +318,7 @@ pub async fn resolve_kv_list_namespace_permission(
         .await
         .map_err(|e| NodegetError::PermissionDenied(format!("{e}")))?;
     if is_super_token {
+        debug!(target: "kv", "resolved list namespace permission to All (super token)");
         return Ok(KvNamespaceListPermission::All);
     }
 
@@ -341,7 +357,10 @@ pub async fn resolve_kv_list_namespace_permission(
 
         for scope in &limit.scopes {
             match scope {
-                Scope::Global => return Ok(KvNamespaceListPermission::All),
+                Scope::Global => {
+                    debug!(target: "kv", "resolved list namespace permission to All (global scope)");
+                    return Ok(KvNamespaceListPermission::All);
+                }
                 Scope::KvNamespace(namespace) => {
                     allowed_namespaces.insert(namespace.clone());
                 }
@@ -351,9 +370,11 @@ pub async fn resolve_kv_list_namespace_permission(
     }
 
     if !allowed_namespaces.is_empty() {
+        debug!(target: "kv", count = allowed_namespaces.len(), "resolved list namespace permission to Scoped");
         return Ok(KvNamespaceListPermission::Scoped(allowed_namespaces));
     }
 
+    warn!(target: "kv", "list namespace permission denied");
     Err(NodegetError::PermissionDenied("No permission to list KV namespaces".to_owned()).into())
 }
 
@@ -366,6 +387,7 @@ pub async fn resolve_kv_list_namespace_permission(
 /// # 返回值
 /// 如果有权限返回 Ok(()，否则返回错误
 pub async fn check_kv_create_permission(token: &str) -> anyhow::Result<()> {
+    trace!(target: "kv", "checking create namespace permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -378,5 +400,6 @@ pub async fn check_kv_create_permission(token: &str) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    warn!(target: "kv", "create namespace permission denied: not a super token");
     Err(NodegetError::PermissionDenied("Only SuperToken can create KV namespace".to_owned()).into())
 }

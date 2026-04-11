@@ -2,6 +2,7 @@ use super::CleanupResult;
 use super::config::CleanupConfig;
 use anyhow::Result;
 use sea_orm::{DatabaseConnection, DbBackend, FromQueryResult, QuerySelect, Statement, prelude::*};
+use tracing::{debug, trace};
 
 // 引入实体模块
 use crate::entity::{crontab_result, dynamic_monitoring, kv, static_monitoring, task};
@@ -11,6 +12,7 @@ const ALLOWED_MONITORING_TABLES: &[&str] = &["static_monitoring", "dynamic_monit
 
 /// `PostgreSQL` 优化版本
 pub async fn cleanup_expired_data_postgres(db: &DatabaseConnection) -> Result<CleanupResult> {
+    debug!(target: "db", "running PostgreSQL cleanup");
     let mut result = CleanupResult::default();
 
     // 获取所有需要清理的 agent UUID 及其配置
@@ -48,6 +50,7 @@ pub async fn cleanup_expired_data_postgres(db: &DatabaseConnection) -> Result<Cl
 /// `PostgreSQL`: 获取所有需要清理的配置
 /// 使用 `SeaORM` 构建查询，避免 Raw SQL
 async fn get_cleanup_configs_postgres(db: &DatabaseConnection) -> Result<Vec<CleanupConfig>> {
+    trace!(target: "db", "loading cleanup configs (postgres)");
     // 使用 SeaORM 构建复杂查询
     // 注意：CASE WHEN 表达式需要使用 Expr::cust 或原生 SQL
     // 这里我们使用更安全的参数化查询
@@ -101,9 +104,10 @@ async fn cleanup_static_monitoring(
     agent_uuid: &str,
     limit_millis: i64,
 ) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning static monitoring (postgres)");
     // 首先查询该 agent 的最大 timestamp
     let max_timestamp: Option<i64> = static_monitoring::Entity::find()
-        .filter(static_monitoring::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(static_monitoring::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .select_only()
         .column_as(static_monitoring::Column::Timestamp.max(), "max_ts")
         .into_tuple()
@@ -120,7 +124,7 @@ async fn cleanup_static_monitoring(
 
     // 使用 SeaORM 执行删除
     let result = static_monitoring::Entity::delete_many()
-        .filter(static_monitoring::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(static_monitoring::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .filter(static_monitoring::Column::Timestamp.lt(cutoff_timestamp))
         .exec(db)
         .await?;
@@ -134,9 +138,10 @@ async fn cleanup_dynamic_monitoring(
     agent_uuid: &str,
     limit_millis: i64,
 ) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning dynamic monitoring (postgres)");
     // 首先查询该 agent 的最大 timestamp
     let max_timestamp: Option<i64> = dynamic_monitoring::Entity::find()
-        .filter(dynamic_monitoring::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(dynamic_monitoring::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .select_only()
         .column_as(dynamic_monitoring::Column::Timestamp.max(), "max_ts")
         .into_tuple()
@@ -151,7 +156,7 @@ async fn cleanup_dynamic_monitoring(
     let cutoff_timestamp = max_ts - limit_millis;
 
     let result = dynamic_monitoring::Entity::delete_many()
-        .filter(dynamic_monitoring::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(dynamic_monitoring::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .filter(dynamic_monitoring::Column::Timestamp.lt(cutoff_timestamp))
         .exec(db)
         .await?;
@@ -161,9 +166,10 @@ async fn cleanup_dynamic_monitoring(
 
 /// 清理 task 表（timestamp 可能为 NULL）
 async fn cleanup_task(db: &DatabaseConnection, agent_uuid: &str, limit_millis: i64) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning tasks (postgres)");
     // 首先查询该 agent 的最大 timestamp（排除 NULL）
     let max_timestamp: Option<i64> = task::Entity::find()
-        .filter(task::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(task::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .filter(task::Column::Timestamp.is_not_null())
         .select_only()
         .column_as(task::Column::Timestamp.max(), "max_ts")
@@ -179,7 +185,7 @@ async fn cleanup_task(db: &DatabaseConnection, agent_uuid: &str, limit_millis: i
     let cutoff_timestamp = max_ts - limit_millis;
 
     let result = task::Entity::delete_many()
-        .filter(task::Column::Uuid.eq(uuid::Uuid::parse_str(agent_uuid)?))
+        .filter(task::Column::Uuid.eq(Uuid::parse_str(agent_uuid)?))
         .filter(task::Column::Timestamp.is_not_null())
         .filter(task::Column::Timestamp.lt(cutoff_timestamp))
         .exec(db)
@@ -191,6 +197,7 @@ async fn cleanup_task(db: &DatabaseConnection, agent_uuid: &str, limit_millis: i
 /// 清理 `crontab_result` 表
 /// `注意：crontab_result` 是全局表，不关联特定 agent
 async fn cleanup_crontab_result(db: &DatabaseConnection, limit_millis: i64) -> Result<u64> {
+    trace!(target: "db", "cleaning crontab results (postgres)");
     // 首先查询最大 run_time（排除 NULL）
     let max_run_time: Option<i64> = crontab_result::Entity::find()
         .filter(crontab_result::Column::RunTime.is_not_null())
@@ -220,6 +227,7 @@ async fn cleanup_crontab_result(db: &DatabaseConnection, limit_millis: i64) -> R
 /// 查找 namespace 为 `global` 且 key 为 `database_limit_crontab_result` 的 KV 记录
 /// 若不存在则返回 None
 async fn get_global_crontab_result_limit_postgres(db: &DatabaseConnection) -> Result<Option<i64>> {
+    trace!(target: "db", "reading global crontab result limit (postgres)");
     // 使用 SeaORM 构建查询
     let result = kv::Entity::find()
         .filter(kv::Column::Namespace.eq("global"))
@@ -236,6 +244,7 @@ async fn get_global_crontab_result_limit_postgres(db: &DatabaseConnection) -> Re
 pub async fn find_uuids_with_database_limit_postgres(
     db: &DatabaseConnection,
 ) -> Result<Vec<String>> {
+    trace!(target: "db", "finding UUIDs with database limits (postgres)");
     // 使用 SeaORM 构建查询
     // 注意：正则匹配需要使用原生 SQL
     let sql = r"

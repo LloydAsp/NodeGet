@@ -23,8 +23,11 @@ server_uuid = "auto_gen"
 [logging]
 
 # 控制台日志过滤器，语法同 RUST_LOG 环境变量，默认 "info"
-# 支持按模块指定级别，例如: "info,rpc=debug,db=warn"
-# 可用的 target: server, rpc, db, crontab, js_runtime, terminal
+# 支持按模块指定级别，例如: "info,kv=debug,monitoring=trace,db=warn"
+# 可用的 target:
+#   server, rpc, db, kv, monitoring, task, token,
+#   js_worker, js_result, crontab, crontab_result,
+#   js_runtime, terminal
 # 其中 "db" 是虚拟 target，会自动展开为 sea_orm / sea_orm_migration / sqlx
 # 如果设置了 RUST_LOG 环境变量，它会覆盖此项
 log_filter = "info"
@@ -36,7 +39,7 @@ json_log_file = "/var/log/nodeget/server.json"
 # JSON 日志过滤器，语法同 RUST_LOG（可选，默认与 log_filter 相同）
 # 可独立控制写入文件的日志级别，例如文件记录更详细的日志
 # 注意：如果未设置且设置了 RUST_LOG 环境变量，则 RUST_LOG 的值也会作为此项的默认值
-json_log_filter = "debug,rpc=trace,db=info"
+json_log_filter = "debug,kv=trace,db=info"
 
 # 内存日志缓冲区容量（条数），默认 500，设为 0 表示禁用内存日志
 # 通过 nodeget-server_log RPC 方法可查询缓冲区内容（需要 SuperToken）

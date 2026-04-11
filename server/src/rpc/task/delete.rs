@@ -173,7 +173,7 @@ pub async fn delete(
                 .all(db)
                 .await
                 .map_err(|e| {
-                    error!(target: "rpc", error = %e, "Database query error");
+                    error!(target: "task", error = %e, "Database query error");
                     NodegetError::DatabaseError(format!("Database query error: {e}"))
                 })?;
 
@@ -185,7 +185,7 @@ pub async fn delete(
                     .exec(db)
                     .await
                     .map_err(|e| {
-                        error!(target: "rpc", error = %e, "Database delete error");
+                        error!(target: "task", error = %e, "Database delete error");
                         NodegetError::DatabaseError(format!("Database delete error: {e}"))
                     })?
                     .rows_affected
@@ -195,7 +195,7 @@ pub async fn delete(
                 .exec(db)
                 .await
                 .map_err(|e| {
-                    error!(target: "rpc", error = %e, "Database delete error");
+                    error!(target: "task", error = %e, "Database delete error");
                     NodegetError::DatabaseError(format!("Database delete error: {e}"))
                 })?
                 .rows_affected

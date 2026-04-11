@@ -5,6 +5,7 @@ use rquickjs::{
 };
 use serde_json::Value;
 use std::ffi::CString;
+use tracing::{debug, error, trace};
 use uuid::Uuid;
 
 pub mod inline_call;
@@ -37,6 +38,7 @@ pub fn format_js_error(err: &Error) -> String {
 }
 
 pub(crate) fn init_js_runtime_globals(ctx: &Ctx<'_>) -> Result<(), Error> {
+    debug!(target: "js_runtime", "initializing JS runtime globals");
     llrt_fetch::init(ctx)?;
     llrt_buffer::init(ctx)?;
     llrt_stream_web::init(ctx)?;
@@ -125,6 +127,7 @@ fn enrich_exception<T>(
 }
 
 fn compile_module_bytecode_no_eval(ctx: &Ctx<'_>, script: &str) -> Result<Vec<u8>, Error> {
+    trace!(target: "js_runtime", "compiling module bytecode");
     let _ = CString::new(script.as_bytes())
         .map_err(|e| js_error("js_compile", format!("Script contains NUL byte: {e}")))?;
     let _ = CString::new("js_worker.js")
@@ -140,6 +143,7 @@ fn compile_module_bytecode_no_eval(ctx: &Ctx<'_>, script: &str) -> Result<Vec<u8
 }
 
 pub fn compile_js_module_to_bytecode(js_code: impl AsRef<str>) -> Result<Vec<u8>, Error> {
+    debug!(target: "js_runtime", "compiling JS module to bytecode");
     let js_code = js_code.as_ref().to_owned();
 
     let host_rt = tokio::runtime::Builder::new_current_thread()
@@ -173,10 +177,14 @@ pub fn js_runner(
     current_script_name: Option<String>,
     inline_caller: Option<String>,
 ) -> Result<Value, Error> {
+    debug!(target: "js_runtime", run_type = ?run_type, has_inline_caller = inline_caller.is_some(), "executing JS runner");
     let host_rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|e| js_error("js_runner", format!("Failed to build host runtime: {e}")))?;
+        .map_err(|e| {
+            error!(target: "js_runtime", error = %e, "failed to build host runtime in js_runner");
+            js_error("js_runner", format!("Failed to build host runtime: {e}"))
+        })?;
 
     host_rt.block_on(async move {
         let rt = AsyncRuntime::new()?;
@@ -413,6 +421,7 @@ pub fn js_runner_source_mode(
     input_params: Value,
     env_value: Value,
 ) -> Result<Value, Error> {
+    debug!(target: "js_runtime", script_name = %script_name, run_type = ?run_type, "executing JS runner in source mode");
     let host_rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

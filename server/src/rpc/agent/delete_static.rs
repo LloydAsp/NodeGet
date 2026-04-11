@@ -73,7 +73,7 @@ pub async fn delete_static(
                 .all(db)
                 .await
                 .map_err(|e| {
-                    error!(target: "rpc", error = %e, "Database query error");
+                    error!(target: "monitoring", error = %e, "Database query error");
                     NodegetError::DatabaseError(format!("Database query error: {e}"))
                 })?;
 
@@ -85,7 +85,7 @@ pub async fn delete_static(
                     .exec(db)
                     .await
                     .map_err(|e| {
-                        error!(target: "rpc", error = %e, "Database delete error");
+                        error!(target: "monitoring", error = %e, "Database delete error");
                         NodegetError::DatabaseError(format!("Database delete error: {e}"))
                     })?
                     .rows_affected
@@ -117,7 +117,7 @@ pub async fn delete_static(
                 .exec(db)
                 .await
                 .map_err(|e| {
-                    error!(target: "rpc", error = %e, "Database delete error");
+                    error!(target: "monitoring", error = %e, "Database delete error");
                     NodegetError::DatabaseError(format!("Database delete error: {e}"))
                 })?
                 .rows_affected

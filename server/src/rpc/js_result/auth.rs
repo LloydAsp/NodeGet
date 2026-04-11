@@ -5,6 +5,7 @@ use nodeget_lib::error::NodegetError;
 use nodeget_lib::permission::data_structure::{JsResult as JsResultPermission, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
+use tracing::{trace, warn};
 
 #[derive(Debug, Clone, Copy)]
 pub enum JsResultAction {
@@ -28,6 +29,7 @@ pub async fn ensure_js_result_permission(
     worker_name: &str,
     action: JsResultAction,
 ) -> anyhow::Result<()> {
+    trace!(target: "js_result", worker_name = %worker_name, action = ?action, "checking js_result permission");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -42,6 +44,7 @@ pub async fn ensure_js_result_permission(
         return Ok(());
     }
 
+    warn!(target: "js_result", worker_name = %worker_name, action = ?action, "permission denied");
     Err(NodegetError::PermissionDenied(format!(
         "Permission denied for js_result on worker '{worker_name}', action: {action:?}"
     ))
@@ -52,6 +55,7 @@ pub async fn resolve_accessible_js_result_workers(
     token: &str,
     action: JsResultAction,
 ) -> anyhow::Result<Vec<String>> {
+    trace!(target: "js_result", action = ?action, "resolving accessible js_result workers");
     let token_or_auth = TokenOrAuth::from_full_token(token)
         .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 

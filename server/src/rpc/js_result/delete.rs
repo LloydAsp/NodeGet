@@ -10,9 +10,11 @@ use nodeget_lib::js_result::query::JsResultDataQuery;
 use nodeget_lib::js_result::query::JsResultQueryCondition;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::value::RawValue;
+use tracing::debug;
 
 pub async fn delete(token: String, query: JsResultDataQuery) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "js_result", condition_count = query.condition.len(), "processing js_result delete request");
         let db = JsResultRpcImpl::get_db()?;
 
         let mut select_query = js_result::Entity::find()

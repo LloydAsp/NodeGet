@@ -6,6 +6,7 @@ pub mod utils;
 use crate::DB;
 use anyhow::{Context, Result};
 use sea_orm::{DatabaseBackend, DatabaseConnection};
+use tracing::{debug, info};
 
 /// 清理结果统计
 #[derive(Debug, Default)]
@@ -36,6 +37,7 @@ fn get_db() -> Result<&'static DatabaseConnection> {
 /// # 返回值
 /// 返回清理的记录数量统计
 pub async fn cleanup_expired_data() -> Result<CleanupResult> {
+    info!(target: "db", "starting expired data cleanup");
     let db = get_db()?;
 
     // 根据数据库类型选择不同的清理策略
@@ -55,6 +57,7 @@ pub async fn cleanup_expired_data() -> Result<CleanupResult> {
 /// # 返回值
 /// 成功时返回满足条件的 UUID 字符串列表
 pub async fn find_uuids_with_database_limit() -> Result<Vec<String>> {
+    debug!(target: "db", "finding UUIDs with database limits");
     let db = get_db()?;
 
     // 根据数据库类型选择不同的查询策略
@@ -79,6 +82,7 @@ pub async fn find_uuids_with_database_limit() -> Result<Vec<String>> {
 /// # 返回值
 /// 成功时返回满足条件的 UUID 字符串列表
 pub async fn find_uuids_with_database_limit_paginated(page_size: u64) -> Result<Vec<String>> {
+    debug!(target: "db", page_size = page_size, "finding UUIDs with database limits (paginated)");
     generic::find_uuids_with_database_limit_paginated(get_db()?, page_size).await
 }
 

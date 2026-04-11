@@ -13,7 +13,7 @@ pub async fn set_value(
     value: Value,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", namespace = %namespace, key = %key, "Processing set_value request");
+        debug!(target: "kv", namespace = %namespace, key = %key, "Processing set_value request");
 
         // 检查写权限
         check_kv_write_permission(&token, &namespace, &key).await?;

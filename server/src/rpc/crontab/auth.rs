@@ -6,6 +6,7 @@ use nodeget_lib::permission::data_structure::{
 };
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use serde_json::Value;
+use tracing::{trace, warn};
 
 fn scopes_from_cron_type(cron_type: &CronType) -> anyhow::Result<Vec<Scope>> {
     let scopes = match cron_type {
@@ -59,6 +60,7 @@ pub async fn ensure_crontab_payload_write_permission(
     token_or_auth: &TokenOrAuth,
     cron_type: &CronType,
 ) -> anyhow::Result<()> {
+    trace!(target: "crontab", "checking crontab payload write permission");
     let scopes = scopes_from_cron_type(cron_type)?;
     let mut permissions = write_permissions_from_cron_type(cron_type);
     if matches!(cron_type, CronType::Agent(_, _)) {
@@ -77,6 +79,7 @@ pub async fn ensure_crontab_payload_write_permission(
     permissions.retain(|perm| matches!(perm, Permission::Crontab(CrontabPermission::Write)));
     let has_crontab_write = check_token_limit(token_or_auth, scopes, permissions).await?;
     if !has_crontab_write {
+        warn!(target: "crontab", "crontab write permission denied in global scope");
         return Err(NodegetError::PermissionDenied(
             "Permission Denied: Missing crontab write permission in global scope".to_owned(),
         )
@@ -99,6 +102,7 @@ pub async fn ensure_crontab_payload_write_permission(
         .await?;
 
         if !has_js_worker_run {
+            warn!(target: "crontab", worker_name = %worker_name, "missing js_worker run permission for crontab server JsWorker type");
             return Err(NodegetError::PermissionDenied(format!(
                 "Permission Denied: Missing js_worker run permission for '{worker_name}'"
             ))
@@ -115,12 +119,14 @@ pub async fn ensure_crontab_scope_permission(
     permission: Permission,
     denied_message: &'static str,
 ) -> anyhow::Result<()> {
+    trace!(target: "crontab", "checking crontab scope permission");
     let scopes = scopes_from_cron_type(cron_type)?;
     let is_allowed = check_token_limit(token_or_auth, scopes, vec![permission]).await?;
 
     if is_allowed {
         Ok(())
     } else {
+        warn!(target: "crontab", "crontab scope permission denied");
         Err(NodegetError::PermissionDenied(denied_message.to_owned()).into())
     }
 }

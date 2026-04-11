@@ -7,7 +7,7 @@ use tracing::debug;
 
 pub async fn get_value(token: String, namespace: String, key: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        debug!(target: "rpc", namespace = %namespace, key = %key, "Processing get_value request");
+        debug!(target: "kv", namespace = %namespace, key = %key, "Processing get_value request");
 
         // 检查读权限
         check_kv_read_permission(&token, &namespace, &key).await?;

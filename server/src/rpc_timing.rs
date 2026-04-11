@@ -3,6 +3,12 @@ use std::future::Future;
 use std::time::Instant;
 use tracing::Level;
 
+/// RPC request timing middleware.
+///
+/// All tracing in this module intentionally uses `target: "rpc"` rather than a
+/// module-specific target, because the middleware is a cross-cutting RPC
+/// framework concern — it measures every RPC call/batch/notification regardless
+/// of which business module handles it.
 #[derive(Clone)]
 pub struct RpcTimingMiddleware<S> {
     pub service: S,

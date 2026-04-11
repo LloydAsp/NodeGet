@@ -4,6 +4,7 @@ use crate::rpc::task::TaskRpcImpl;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::task::TaskEventType;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use tracing::trace;
 use uuid::Uuid;
 
 // 检查 Agent 是否有权连接终端
@@ -20,6 +21,7 @@ pub async fn check_agent(
     task_token: String,
     task_id: u64,
 ) -> anyhow::Result<bool> {
+    trace!(target: "terminal", agent_uuid = %agent_uuid, task_id = task_id, "checking agent terminal authorization");
     let agent_uuid = Uuid::parse_str(&agent_uuid)
         .map_err(|_| NodegetError::ParseError("Invalid Agent UUID format".to_owned()))?;
 

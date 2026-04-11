@@ -8,10 +8,12 @@ use sea_orm::{
     QuerySelect,
 };
 use std::collections::{HashMap, HashSet};
+use tracing::{debug, trace};
 use uuid::Uuid;
 
 /// 通用版本（适用于 `SQLite`）
 pub async fn cleanup_expired_data_generic(db: &DatabaseConnection) -> Result<CleanupResult> {
+    debug!(target: "db", "running generic/SQLite cleanup");
     let mut result = CleanupResult::default();
 
     // 获取所有需要清理的 agent UUID 及其配置
@@ -48,6 +50,7 @@ pub async fn cleanup_expired_data_generic(db: &DatabaseConnection) -> Result<Cle
 
 /// 通用版本: 获取所有需要清理的配置
 async fn get_cleanup_configs_generic(db: &DatabaseConnection) -> Result<Vec<CleanupConfig>> {
+    trace!(target: "db", "loading cleanup configs (generic)");
     let records = kv::Entity::find()
         .filter(kv::Column::Key.is_in([
             "database_limit_static_monitoring",
@@ -102,6 +105,7 @@ async fn cleanup_static_monitoring_generic(
     agent_uuid: &str,
     limit_millis: i64,
 ) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning static monitoring (generic)");
     let uuid = Uuid::parse_str(agent_uuid)?;
 
     // 获取该 agent 的最大 timestamp
@@ -140,6 +144,7 @@ async fn cleanup_dynamic_monitoring_generic(
     agent_uuid: &str,
     limit_millis: i64,
 ) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning dynamic monitoring (generic)");
     let uuid = Uuid::parse_str(agent_uuid)?;
 
     // 获取该 agent 的最大 timestamp
@@ -178,6 +183,7 @@ async fn cleanup_task_generic(
     agent_uuid: &str,
     limit_millis: i64,
 ) -> Result<u64> {
+    trace!(target: "db", agent_uuid = %agent_uuid, "cleaning tasks (generic)");
     let uuid = Uuid::parse_str(agent_uuid)?;
 
     // 获取该 agent 的最大 timestamp（排除 NULL）
@@ -216,6 +222,7 @@ async fn cleanup_task_generic(
 ///
 /// `注意：crontab_result` 是全局表，不关联特定 agent
 async fn cleanup_crontab_result_generic(db: &DatabaseConnection, limit_millis: i64) -> Result<u64> {
+    trace!(target: "db", "cleaning crontab results (generic)");
     // 获取 crontab_result 的最大 run_time
     let max_run_time: Option<i64> = crontab_result::Entity::find()
         .filter(crontab_result::Column::RunTime.is_not_null())
@@ -248,6 +255,7 @@ async fn cleanup_crontab_result_generic(db: &DatabaseConnection, limit_millis: i
 /// 查找 namespace 为 `global` 且 key 为 `database_limit_crontab_result` 的 KV 记录
 /// 若不存在则返回 None
 async fn get_global_crontab_result_limit(db: &DatabaseConnection) -> Result<Option<i64>> {
+    trace!(target: "db", "reading global crontab result limit");
     let global_record = kv::Entity::find()
         .filter(kv::Column::Namespace.eq("global"))
         .filter(kv::Column::Key.eq("database_limit_crontab_result"))
@@ -261,6 +269,7 @@ async fn get_global_crontab_result_limit(db: &DatabaseConnection) -> Result<Opti
 pub async fn find_uuids_with_database_limit_generic(
     db: &DatabaseConnection,
 ) -> Result<Vec<String>> {
+    trace!(target: "db", "finding UUIDs with database limits (generic)");
     // 查询所有包含 `database_limit_*` 配置的 namespace（去重）
     let all_names: Vec<String> = kv::Entity::find()
         .select_only()
@@ -294,6 +303,7 @@ pub async fn find_uuids_with_database_limit_paginated(
     db: &DatabaseConnection,
     page_size: u64,
 ) -> Result<Vec<String>> {
+    trace!(target: "db", page_size = page_size, "finding UUIDs paginated (generic)");
     let mut result = HashSet::new();
     let mut paginator = kv::Entity::find()
         .filter(kv::Column::Key.like("database_limit_%"))

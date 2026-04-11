@@ -7,6 +7,7 @@ use nodeget_lib::permission::data_structure::Limit;
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::value::RawValue;
+use tracing::{debug, warn};
 
 pub async fn edit(
     token_input: String,
@@ -14,6 +15,7 @@ pub async fn edit(
     limit: Vec<Limit>,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "token", target_token = %target_token, "processing token edit request");
         let token_or_auth = TokenOrAuth::from_full_token(&token_input)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -22,6 +24,7 @@ pub async fn edit(
             .map_err(|e| NodegetError::PermissionDenied(format!("{e}")))?;
 
         if !is_super_token {
+            warn!(target: "token", "non-supertoken attempted to edit token limits");
             return Err(NodegetError::PermissionDenied(
                 "Only SuperToken can edit token limits".to_owned(),
             )

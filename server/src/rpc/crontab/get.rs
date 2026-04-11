@@ -13,10 +13,12 @@ use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use sea_orm::EntityTrait;
 use serde_json::value::RawValue;
 use std::collections::HashSet;
+use tracing::{debug, trace, warn};
 use uuid::Uuid;
 
 pub async fn get(token: String) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab", "processing crontab get request");
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
 
@@ -57,6 +59,7 @@ pub async fn get(token: String) -> RpcResult<Box<RawValue>> {
         });
 
         if !has_crontab_read_permission {
+            warn!(target: "crontab", "crontab read permission denied");
             return Err(NodegetError::PermissionDenied(
                 "Permission Denied: Insufficient Crontab Read permission".to_owned(),
             )
@@ -86,6 +89,7 @@ pub async fn get(token: String) -> RpcResult<Box<RawValue>> {
 }
 
 async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> anyhow::Result<Vec<Cron>> {
+    trace!(target: "crontab", uuid_count = uuids.len(), "fetching crontabs by agent UUIDs");
     let db = DB
         .get()
         .ok_or_else(|| NodegetError::DatabaseError("DB not initialized".to_owned()))?;
@@ -124,6 +128,7 @@ async fn get_crontabs_by_uuids(uuids: Vec<Uuid>) -> anyhow::Result<Vec<Cron>> {
 }
 
 async fn get_all_crontabs() -> anyhow::Result<Vec<Cron>> {
+    trace!(target: "crontab", "fetching all crontabs");
     let db = DB
         .get()
         .ok_or_else(|| NodegetError::DatabaseError("DB not initialized".to_owned()))?;

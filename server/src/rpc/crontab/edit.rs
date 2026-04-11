@@ -13,6 +13,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::value::RawValue;
 use std::str::FromStr;
+use tracing::debug;
 
 pub async fn edit(
     token: String,
@@ -21,6 +22,7 @@ pub async fn edit(
     cron_type: CronType,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
+        debug!(target: "crontab", name = %name, "processing crontab edit request");
         if let Err(e) = Schedule::from_str(&cron_expression) {
             return Err(NodegetError::ParseError(format!("Invalid cron expression: {e}")).into());
         }
