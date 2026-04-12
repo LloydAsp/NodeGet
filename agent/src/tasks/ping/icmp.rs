@@ -98,15 +98,25 @@ mod dgram {
         socket.set_read_timeout(Some(PING_TIMEOUT))?;
         socket.set_write_timeout(Some(PING_TIMEOUT))?;
 
+        debug!("[dgram] sending {} bytes to {target} (v6={is_v6})", packet.len());
+
         let start = Instant::now();
-        socket.send_to(&packet, &dest)?;
+        match socket.send_to(&packet, &dest) {
+            Ok(n) => debug!("[dgram] send_to ok, {n} bytes sent"),
+            Err(e) => {
+                debug!("[dgram] send_to failed: kind={:?}, os_error={:?}, msg={e}", e.kind(), e.raw_os_error());
+                return Err(e);
+            }
+        }
 
         let mut recv_buf = [MaybeUninit::<u8>::uninit(); 256];
         let deadline = start + PING_TIMEOUT;
+        let mut recv_attempts = 0u32;
 
         loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
+                debug!("[dgram] timeout after {recv_attempts} recv attempts");
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "ICMP ping timeout",
@@ -114,20 +124,28 @@ mod dgram {
             }
             socket.set_read_timeout(Some(remaining))?;
 
-            let (n, _from) = match socket.recv_from(&mut recv_buf) {
+            recv_attempts += 1;
+            let (n, from) = match socket.recv_from(&mut recv_buf) {
                 Ok(r) => r,
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock
                     || e.kind() == std::io::ErrorKind::TimedOut =>
                 {
+                    debug!("[dgram] recv_from timeout/wouldblock after {recv_attempts} attempts: kind={:?}, os_error={:?}", e.kind(), e.raw_os_error());
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
                         "ICMP ping timeout",
                     ));
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    debug!("[dgram] recv_from error: kind={:?}, os_error={:?}, msg={e}", e.kind(), e.raw_os_error());
+                    return Err(e);
+                }
             };
 
+            debug!("[dgram] recv_from: {n} bytes from {from:?}");
+
             if n < 8 {
+                debug!("[dgram] packet too short ({n} < 8), skipping");
                 continue;
             }
 
@@ -135,21 +153,29 @@ mod dgram {
             let data: &[u8] =
                 unsafe { std::slice::from_raw_parts(recv_buf.as_ptr().cast::<u8>(), n) };
 
-            // DGRAM ICMP socket: 内核已按 socket 绑定的 ID 做 demux，
-            // 只会收到属于本 socket 的回复，无需校验 ID。
-            // 只需确认是 Echo Reply 类型。
             let reply_type = data[0];
+            let reply_code = data[1];
+            let reply_id = u16::from_be_bytes([data[4], data[5]]);
+            let reply_seq = u16::from_be_bytes([data[6], data[7]]);
             let expected_reply = if is_v6 {
                 ICMPV6_ECHO_REPLY
             } else {
                 ICMP_ECHO_REPLY
             };
 
+            debug!(
+                "[dgram] packet: type={reply_type} code={reply_code} id={reply_id} seq={reply_seq}, expected_type={expected_reply}, hex={:02x?}",
+                &data[..n.min(32)]
+            );
+
             if reply_type != expected_reply {
+                debug!("[dgram] type mismatch, skipping");
                 continue;
             }
 
-            return Ok(start.elapsed());
+            let elapsed = start.elapsed();
+            debug!("[dgram] ping success: {elapsed:?}");
+            return Ok(elapsed);
         }
     }
 
@@ -170,7 +196,10 @@ mod dgram {
 
         // 尝试创建 socket —— 只有这一步的失败才意味着"不支持"
         let socket = match try_create_socket(is_v6) {
-            Ok(s) => s,
+            Ok(s) => {
+                debug!("[dgram] socket created successfully for v6={is_v6}");
+                s
+            }
             Err(e) => {
                 debug!(
                     "ICMP DGRAM socket creation failed: kind={:?}, os_error={:?}, msg={e}",
