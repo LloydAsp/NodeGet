@@ -68,6 +68,7 @@ pub struct Server {
 
 // IP 地址获取服务提供商枚举
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum IpProvider {
     IpInfo,
     Cloudflare,
