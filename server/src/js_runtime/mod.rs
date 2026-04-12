@@ -313,6 +313,7 @@ pub fn js_runner(
                     globalThis.inlineCall = inlineCall;
                     const runtimeCtx = {
                         runType: runHandler,
+                        workerName: globalThis.__nodeget_current_script_name ?? null,
                         inlineCall,
                         inlineCaller: globalThis.__nodeget_inline_caller ?? null
                     };
@@ -531,6 +532,7 @@ pub fn js_runner_source_mode(
                     globalThis.inlineCall = inlineCall;
                     const runtimeCtx = {
                         runType: runHandler,
+                        workerName: globalThis.__nodeget_current_script_name ?? null,
                         inlineCall,
                         inlineCaller: globalThis.__nodeget_inline_caller ?? null
                     };

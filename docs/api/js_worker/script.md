@@ -44,11 +44,10 @@ async function handler(params, env, ctx) {}
 - `params`：来自 `js-worker_run` 的 `params`
 - `env`：来自 `js-worker_run.env` 或数据库保存的 `env`
 - `ctx`：运行时上下文，当前包含：
-    - `ctx.nodeget(rawJsonString)`：调用 Server 内部 JSON-RPC
-    - `ctx.inlineCall(js_worker_name, params, timeout_sec?)`：同步调用另一个 JS Worker，返回 JSON 结果；会写入 `js_result`
-    - `ctx.inlineCaller`：调用者脚本名（如 A 通过 `inlineCall` 调 B，则 B 中该值为 `A`；顶层调用为 `null`）
-    - `ctx.uuid()`：生成随机 UUID v4 字符串
-    - `ctx.runType`：当前入口名（`onCall` / `onInlineCall` / `onCron` / `onRoute`）
+    - `ctx.runType`：当前入口名（`"onCall"` / `"onInlineCall"` / `"onCron"` / `"onRoute"`）
+    - `ctx.workerName`：当前 Worker 的名字
+    - `ctx.inlineCall(js_worker_name, params, timeout_sec?)`：调用另一个 JS Worker 的 `onInlineCall`，返回其结果；会写入 `js_result`
+    - `ctx.inlineCaller`：调用者脚本名（如 A 通过 `inlineCall` 调 B，则 B 中该值为 `"A"`；顶层调用为 `null`）
 
 `onRoute` 入口签名：
 
@@ -70,7 +69,8 @@ async function onRoute(request, env, ctx) {}
 ## 可用能力
 
 - `fetch`：已注入，可直接发 HTTP 请求。
-- `ctx.nodeget`：已注入，参数是 JSON 字符串，返回也是 JSON 字符串。
+- `globalThis.nodeget(json)`：已注入，参数可以是 JSON 字符串或 JS 对象（对象会自动 `JSON.stringify`），返回解析后的 JS 对象。
+- `globalThis.randomUUID()`：已注入，生成随机 UUID v4 字符串。
 - `ctx.inlineCall`：已注入，可 `await` 调用指定 `js_worker` 的 `onInlineCall`。
 - 更多注入函数/对象见 [injected](./injected.md)。
 
@@ -79,13 +79,12 @@ async function onRoute(request, env, ctx) {}
 ```js
 export default {
   async onCall(params, env, ctx) {
-    const helloRaw = await ctx.nodeget(JSON.stringify({
+    const hello = await nodeget({
       jsonrpc: "2.0",
       method: "nodeget-server_hello",
       params: [],
       id: 1001
-    }));
-    const hello = JSON.parse(helloRaw);
+    });
 
     const resp = await fetch("https://httpbin.org/get");
     const text = await resp.text();

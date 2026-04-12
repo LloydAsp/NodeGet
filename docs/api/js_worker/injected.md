@@ -4,14 +4,20 @@
 
 ## 自定义注入
 
-- `globalThis.nodeget(rawJsonString)`
-- `globalThis.inlineCall(js_worker_name, params, timeout_sec?)`
-- `globalThis.uuid()`（生成随机 UUID v4 字符串）
-- `ctx.nodeget(rawJsonString)`（脚本入口第三参）
-- `ctx.inlineCall(js_worker_name, params, timeout_sec?)`
-- `ctx.inlineCaller`（当前脚本的调用者脚本名；顶层调用时为 `null`）
-- `ctx.uuid()`（等价于全局 `uuid`）
-- `ctx.runType`（脚本入口第三参）
+### 全局函数
+
+- `globalThis.nodeget(json)` — 调用 NodeGet JSON-RPC API，`json` 可以是 JSON 字符串或 JS 对象（对象会自动 `JSON.stringify`），返回解析后的 JS 对象
+- `globalThis.inlineCall(js_worker_name, params, timeout_sec?)` — 调用其他 JS Worker
+- `globalThis.randomUUID()` — 生成随机 UUID v4 字符串
+
+### runtimeCtx（handler 第三参数）
+
+脚本 handler 签名为 `handler(input, env, runtimeCtx)`，其中 `runtimeCtx` 包含以下属性：
+
+- `runtimeCtx.runType` — 当前运行类型字符串：`"onCall"` / `"onCron"` / `"onRoute"` / `"onInlineCall"`
+- `runtimeCtx.workerName` — 当前 Worker 的名字
+- `runtimeCtx.inlineCall(js_worker_name, params, timeout_sec?)` — 等价于 `globalThis.inlineCall`
+- `runtimeCtx.inlineCaller` — 调用当前脚本的调用者脚本名；顶层调用时为 `null`
 
 ## llrt_* 模块支持
 
