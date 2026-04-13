@@ -121,6 +121,56 @@ async fn connection_manager(
 
         let (mut ws_write, mut ws_read) = ws_stream.split();
 
+        // 校验 Server UUID
+        {
+            let rpc = wrap_json_into_rpc_with_id_1("nodeget-server_uuid", vec![]);
+            if let Err(e) = ws_write.send(Message::Text(Utf8Bytes::from(rpc))).await {
+                error!("[{name}] Write error (uuid check): {e}, triggering reconnect...");
+                continue;
+            }
+
+            // 读取响应，带 5 秒超时
+            let uuid_response = match timeout(Duration::from_secs(5), ws_read.next()).await {
+                Ok(Some(Ok(Message::Text(text)))) => {
+                    // 解析 JSON-RPC 响应中的 result 字段
+                    serde_json::from_str::<serde_json::Value>(&text)
+                        .ok()
+                        .and_then(|v| v.get("result")?.as_str().map(String::from))
+                }
+                Ok(Some(Ok(_))) => None,
+                Ok(Some(Err(e))) => {
+                    error!("[{name}] Read error during uuid check: {e}, triggering reconnect...");
+                    continue;
+                }
+                Ok(None) => {
+                    error!("[{name}] Connection closed during uuid check, triggering reconnect...");
+                    continue;
+                }
+                Err(_) => {
+                    error!("[{name}] Timeout waiting for uuid response, triggering reconnect...");
+                    continue;
+                }
+            };
+
+            match uuid_response {
+                Some(remote_uuid) if remote_uuid == server.server_uuid => {
+                    debug!("[{name}] Server UUID verified: {remote_uuid}");
+                }
+                Some(remote_uuid) => {
+                    error!(
+                        "[{name}] Server UUID mismatch: expected '{}', got '{remote_uuid}'. Skipping this server.",
+                        server.server_uuid
+                    );
+                    sleep(Duration::from_secs(30)).await;
+                    continue;
+                }
+                None => {
+                    error!("[{name}] Failed to parse server UUID response, triggering reconnect...");
+                    continue;
+                }
+            }
+        }
+
         // 任务注册
         {
             if server.allow_task.unwrap_or(false) {

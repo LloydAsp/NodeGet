@@ -33,6 +33,13 @@ ip_provider = "ipinfo"
 # 必须指定，用于展示与内部判断，可自由命名
 name = "test_server1"
 
+# Server UUID
+# 必须指定，用于连接时校验服务器身份
+# Agent 连接成功后会调用 nodeget-server_uuid 获取远端 UUID 并与此值比对
+# 不匹配时打印 error 日志并跳过该 Server（不影响其他 Server）
+# 可通过 nodeget-server_uuid RPC 方法获取，或在 Server 配置文件中查看
+server_uuid = "00000000-0000-0000-0000-000000000000"
+
 # 具有一定权限的 Token，可以为 TokenKey:TokenSecret 或 Username|Password
 token = "test_server1_token"
 
@@ -73,6 +80,7 @@ allow_ip = true
 # 第二个 Server
 [[server]]
 name = "test_server2"
+server_uuid = "00000000-0000-0000-0000-000000000000"
 token = "test_server2_token"
 ws_url = "ws://127.0.0.1:3000/"
 ```
