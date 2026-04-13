@@ -359,7 +359,7 @@ pub fn js_runner(
                         }
 
                         const routeRequest = new Request(String(input.url ?? ""), routeInit);
-                        const routeResponse = await handler(routeRequest, env, runtimeCtx);
+                        const routeResponse = await handler.call(entry, routeRequest, env, runtimeCtx);
 
                         if (!(routeResponse instanceof Response)) {
                             throw new Error("onRoute must return a Response object");
@@ -374,7 +374,7 @@ pub fn js_runner(
                         };
                     }
 
-                    const result = await handler(input, env, runtimeCtx);
+                    const result = await handler.call(entry, input, env, runtimeCtx);
                     if (typeof result === "undefined") {
                         throw new Error("JS handler must return a JSON-serializable value");
                     }
@@ -578,7 +578,7 @@ pub fn js_runner_source_mode(
                         }
 
                         const routeRequest = new Request(String(input.url ?? ""), routeInit);
-                        const routeResponse = await handler(routeRequest, env, runtimeCtx);
+                        const routeResponse = await handler.call(entry, routeRequest, env, runtimeCtx);
 
                         if (!(routeResponse instanceof Response)) {
                             throw new Error("onRoute must return a Response object");
@@ -593,7 +593,7 @@ pub fn js_runner_source_mode(
                         };
                     }
 
-                    const result = await handler(input, env, runtimeCtx);
+                    const result = await handler.call(entry, input, env, runtimeCtx);
                     if (typeof result === "undefined") {
                         throw new Error("JS handler must return a JSON-serializable value");
                     }
