@@ -11,12 +11,6 @@ use tracing::{trace, warn};
 fn scopes_from_cron_type(cron_type: &CronType) -> anyhow::Result<Vec<Scope>> {
     let scopes = match cron_type {
         CronType::Agent(uuids, _) => {
-            if uuids.is_empty() {
-                return Err(
-                    NodegetError::ParseError("Agent list cannot be empty".to_owned()).into(),
-                );
-            }
-
             uuids
                 .iter()
                 .map(|uuid| Scope::AgentUuid(*uuid))
@@ -64,6 +58,24 @@ pub async fn ensure_crontab_payload_write_permission(
     let scopes = scopes_from_cron_type(cron_type)?;
     let mut permissions = write_permissions_from_cron_type(cron_type);
     if matches!(cron_type, CronType::Agent(_, _)) {
+        if scopes.is_empty() {
+            // Empty agent list: only require Crontab::Write on Global scope
+            let has_crontab_write = check_token_limit(
+                token_or_auth,
+                vec![Scope::Global],
+                vec![Permission::Crontab(CrontabPermission::Write)],
+            )
+            .await?;
+            if has_crontab_write {
+                return Ok(());
+            }
+            return Err(NodegetError::PermissionDenied(
+                "Permission Denied: Missing Crontab Write permission for empty agent list"
+                    .to_owned(),
+            )
+            .into());
+        }
+
         let is_allowed = check_token_limit(token_or_auth, scopes, permissions).await?;
         if is_allowed {
             return Ok(());
@@ -121,6 +133,12 @@ pub async fn ensure_crontab_scope_permission(
 ) -> anyhow::Result<()> {
     trace!(target: "crontab", "checking crontab scope permission");
     let scopes = scopes_from_cron_type(cron_type)?;
+    // Empty agent list: fall back to Global scope for permission check
+    let scopes = if scopes.is_empty() {
+        vec![Scope::Global]
+    } else {
+        scopes
+    };
     let is_allowed = check_token_limit(token_or_auth, scopes, vec![permission]).await?;
 
     if is_allowed {
