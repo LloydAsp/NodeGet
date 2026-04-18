@@ -10,6 +10,7 @@ pub async fn list_all_namespace(token: String) -> RpcResult<Box<RawValue>> {
         debug!(target: "kv", "Processing list_all_namespace request");
 
         let permission = resolve_kv_list_namespace_permission(&token).await?;
+        debug!(target: "kv", "list_all_namespace permission check passed");
         let namespaces = list_all_namespaces().await?;
 
         let filtered_namespaces = match permission {

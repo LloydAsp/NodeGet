@@ -77,6 +77,8 @@ pub async fn query_dynamic(
             .into());
         }
 
+        debug!(target: "monitoring", conditions_count = dynamic_data_query.condition.len(), fields_count = dynamic_data_query.fields.len(), "Dynamic query permission check passed");
+
         let db = AgentRpcImpl::get_db()?;
 
         let query = dynamic_monitoring::Entity::find()

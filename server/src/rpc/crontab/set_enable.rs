@@ -28,6 +28,8 @@ pub async fn set_enable(token: String, name: String, enable: bool) -> RpcResult<
             return Err(NodegetError::NotFound(format!("Crontab not found: {name}")).into());
         };
 
+        debug!(target: "crontab", id = model.id, name = %name, "Crontab found for enable toggle");
+
         let cron_type = parse_cron_type(&model.cron_type, &name)?;
         ensure_crontab_scope_permission(
             &token_or_auth,
@@ -36,6 +38,8 @@ pub async fn set_enable(token: String, name: String, enable: bool) -> RpcResult<
             "Permission Denied: Missing Crontab Write permission for all target scopes",
         )
         .await?;
+
+        debug!(target: "crontab", name = %name, enable = enable, "Crontab set_enable permission check passed");
 
         let result_state = set_crontab_enable_by_name(name.clone(), enable)
             .await

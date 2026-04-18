@@ -14,7 +14,7 @@ use serde_json::Value;
 use serde_json::value::RawValue;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tracing::debug;
+use tracing::{debug, error};
 
 static ERROR_COUNTER: AtomicU64 = AtomicU64::new(0);
 fn generate_error_id() -> u64 {
@@ -62,8 +62,14 @@ pub async fn query_dynamic_summary_avg(
             .into());
         }
 
+        debug!(target: "monitoring", uuid = %query.uuid, "Dynamic summary avg query permission check passed");
+
         let db = AgentRpcImpl::get_db()?;
-        ensure_postgres_backend(db)?;
+        ensure_postgres_backend(db).map_err(|e| {
+            error!(target: "monitoring", error = %e, "Dynamic summary avg query requires PostgreSQL backend");
+            e
+        })?;
+        debug!(target: "monitoring", uuid = %query.uuid, "Executing dynamic summary avg SQL query");
         query_summary_avg_postgres(db, &query).await
     };
 

@@ -10,7 +10,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::value::RawValue;
 use std::str::FromStr;
-use tracing::debug;
+use tracing::{debug, error};
 
 pub async fn report_static(
     token: String,
@@ -19,9 +19,11 @@ pub async fn report_static(
     let process_logic = async {
         let agent_uuid = uuid::Uuid::from_str(&static_monitoring_data.uuid)
             .map_err(|e| NodegetError::ParseError(format!("Invalid UUID format: {e}")))?;
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_static: UUID parsed");
 
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_static: token parsed");
 
         let is_allowed = check_token_limit(
             &token_or_auth,
@@ -37,6 +39,7 @@ pub async fn report_static(
             )
             .into());
         }
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_static: permission check passed");
 
         // 检查该 uuid + data_hash 是否已存在，若存在则跳过写入
         let db = <AgentRpcImpl as crate::rpc::RpcHelper>::get_db()?;
@@ -45,7 +48,10 @@ pub async fn report_static(
             .filter(static_monitoring::Column::DataHash.eq(static_monitoring_data.data_hash.as_slice()))
             .one(db)
             .await
-            .map_err(|e| NodegetError::DatabaseError(e.to_string()))?;
+            .map_err(|e| {
+                error!(target: "monitoring", agent_uuid = %agent_uuid, error = %e, "report_static: DB hash check failed");
+                NodegetError::DatabaseError(e.to_string())
+            })?;
 
         if exists.is_some() {
             debug!(target: "monitoring", agent_uuid = %static_monitoring_data.uuid, "Static data hash already exists, skipping");

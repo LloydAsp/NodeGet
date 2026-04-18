@@ -32,6 +32,8 @@ pub async fn edit(
             .into());
         }
 
+        debug!(target: "token", target_token = %target_token, "Super token verified, finding target token");
+
         let db = DB.get().ok_or_else(|| {
             NodegetError::ConfigNotFound("Database connection not initialized".to_owned())
         })?;

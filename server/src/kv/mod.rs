@@ -25,6 +25,7 @@ async fn namespace_exists(db: &DatabaseConnection, namespace: &str) -> Result<bo
         .one(db)
         .await?
         .is_some();
+    debug!(target: "kv", namespace = %namespace, exists, "namespace_exists check");
     Ok(exists)
 }
 
@@ -100,6 +101,8 @@ pub async fn get_v_from_kv(namespace: String, key: String) -> Result<Option<Valu
         .one(db)
         .await?;
 
+    let found = model.is_some();
+    debug!(target: "kv", namespace = %namespace, key = %key, found, "get_v_from_kv completed");
     Ok(model.map(|record| record.value))
 }
 
@@ -158,9 +161,11 @@ pub async fn get_or_create_kv(namespace: String) -> Result<KVStore> {
     let db = get_db()?;
 
     if namespace_exists(db, &namespace).await? {
+        debug!(target: "kv", namespace = %namespace, "get_or_create_kv: namespace exists, fetching store");
         return get_kv_store(namespace).await;
     }
 
+    debug!(target: "kv", namespace = %namespace, "get_or_create_kv: namespace not found, creating");
     create_kv(namespace).await
 }
 
@@ -225,6 +230,8 @@ pub async fn get_keys_from_kv(namespace: String) -> Result<Vec<String>> {
         .all(db)
         .await?;
 
+    let keys_count = models.len();
+    debug!(target: "kv", namespace = %namespace, keys_count, "get_keys_from_kv completed");
     Ok(models.into_iter().map(|model| model.key).collect())
 }
 
@@ -246,11 +253,13 @@ pub async fn get_kv_store(namespace: String) -> Result<KVStore> {
         .all(db)
         .await?;
 
-    let mut kv_store = KVStore::new(namespace);
+    let entries_count = models.len();
+    let mut kv_store = KVStore::new(namespace.clone());
     for model in models {
         kv_store.set(model.key, model.value);
     }
 
+    debug!(target: "kv", namespace = %namespace, entries_count, "get_kv_store completed");
     Ok(kv_store)
 }
 
@@ -270,5 +279,6 @@ pub async fn list_all_namespaces() -> Result<Vec<String>> {
         .all(db)
         .await?;
 
+    debug!(target: "kv", count = namespaces.len(), "list_all_namespaces completed");
     Ok(namespaces)
 }

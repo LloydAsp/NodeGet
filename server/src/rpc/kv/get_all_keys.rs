@@ -11,6 +11,7 @@ pub async fn get_all_keys(token: String, namespace: String) -> RpcResult<Box<Raw
 
         // 检查列出 keys 的权限
         check_kv_list_keys_permission(&token, &namespace).await?;
+        debug!(target: "kv", namespace = %namespace, "get_all_keys permission check passed");
 
         let keys = get_keys_from_kv(namespace).await?;
 

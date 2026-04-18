@@ -17,6 +17,7 @@ pub async fn set_value(
 
         // 检查写权限
         check_kv_write_permission(&token, &namespace, &key).await?;
+        debug!(target: "kv", namespace = %namespace, key = %key, "set_value permission check passed");
 
         set_v_to_kv(namespace, key, value).await?;
 

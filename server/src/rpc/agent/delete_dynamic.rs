@@ -19,6 +19,7 @@ pub async fn delete_dynamic(
     let process_logic = async {
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
+        debug!(target: "monitoring", conditions_count = conditions.len(), "delete_dynamic: request received");
 
         let scopes = scopes_from_conditions(&conditions);
         let is_allowed = check_token_limit(
@@ -35,9 +36,11 @@ pub async fn delete_dynamic(
             )
                 .into());
         }
+        debug!(target: "monitoring", "delete_dynamic: permission check passed");
 
         let db = AgentRpcImpl::get_db()?;
         let (limit_count, is_last) = extract_limit_and_last(&conditions);
+        debug!(target: "monitoring", ?limit_count, is_last, "delete_dynamic: executing delete");
 
         let rows_affected = if is_last || limit_count.is_some() {
             let mut query = dynamic_monitoring::Entity::find();

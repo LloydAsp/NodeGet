@@ -26,6 +26,7 @@ pub async fn create(
 
         // 2. 再检查权限（防止未授权访问）
         ensure_crontab_payload_write_permission(&token_or_auth, &cron_type).await?;
+        debug!(target: "crontab", name = %name, "Crontab create permission check passed");
 
         // 3. 最后验证 Cron 表达式（高成本操作，防止 DoS）
         if let Err(e) = Schedule::from_str(&cron_expression) {
@@ -45,6 +46,7 @@ pub async fn create(
                 NodegetError::InvalidInput(format!("Crontab name already exists: {name}")).into(),
             );
         }
+        debug!(target: "crontab", name = %name, "Crontab name available, inserting");
 
         let cron_type_json = CrontabRpcImpl::try_set_json(&cron_type)
             .map_err(|e| NodegetError::SerializationError(e.to_string()))?;

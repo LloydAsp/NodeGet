@@ -42,6 +42,7 @@ pub async fn get_multi_value(
             }
             check_kv_read_permission_with_pattern(&token, &item.namespace, &item.key).await?;
         }
+        debug!(target: "kv", items_count = namespace_key.len(), "get_multi_value permission checks passed");
 
         // 按 namespace 缓存 KVStore，避免重复读取
         let mut namespace_cache = HashMap::new();

@@ -11,6 +11,7 @@ pub async fn get_value(token: String, namespace: String, key: String) -> RpcResu
 
         // 检查读权限
         check_kv_read_permission(&token, &namespace, &key).await?;
+        debug!(target: "kv", namespace = %namespace, key = %key, "get_value permission check passed");
 
         let value = get_v_from_kv(namespace, key).await?;
         let found = value.is_some();

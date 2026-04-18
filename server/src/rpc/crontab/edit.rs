@@ -39,6 +39,8 @@ pub async fn edit(
             .map_err(|e| NodegetError::DatabaseError(e.to_string()))?
             .ok_or_else(|| NodegetError::NotFound(format!("Crontab not found: {name}")))?;
 
+        debug!(target: "crontab", id = model.id, name = %name, "Crontab found for editing");
+
         let original_cron_type = parse_cron_type(&model.cron_type, &name)?;
 
         // 编辑已有 Crontab 前，必须覆盖其原有全部 Scope。
@@ -52,6 +54,7 @@ pub async fn edit(
 
         // 新配置本身也必须满足完整 Scope + Task(Create) 写入权限。
         ensure_crontab_payload_write_permission(&token_or_auth, &cron_type).await?;
+        debug!(target: "crontab", name = %name, "Crontab edit permission checks passed");
 
         let mut active_model: crontab::ActiveModel = model.into();
         active_model.cron_expression = Set(cron_expression);

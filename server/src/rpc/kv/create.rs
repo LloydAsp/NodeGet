@@ -11,6 +11,7 @@ pub async fn create(token: String, name: String) -> RpcResult<Box<RawValue>> {
 
         // 检查创建命名空间的权限
         check_kv_create_permission(&token).await?;
+        debug!(target: "kv", namespace = %name, "Create namespace permission check passed");
 
         let kv_store = create_kv(name).await?;
 

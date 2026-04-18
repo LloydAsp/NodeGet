@@ -11,6 +11,7 @@ pub async fn delete_key(token: String, namespace: String, key: String) -> RpcRes
 
         // 检查删除权限
         check_kv_delete_permission(&token, &namespace, &key).await?;
+        debug!(target: "kv", namespace = %namespace, key = %key, "delete_key permission check passed");
 
         delete_key_from_kv(namespace, key).await?;
 

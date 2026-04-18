@@ -9,7 +9,7 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use serde_json::Value;
 use subtle::ConstantTimeEq;
-use tracing::warn;
+use tracing::{debug, warn};
 
 /// 统一的身份验证失败错误消息，防止信息泄露
 const AUTH_FAILED_MESSAGE: &str = "Invalid credentials";
@@ -38,6 +38,7 @@ pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
                 return Err(NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()).into());
             }
 
+            debug!(target: "auth", token_key = %key, "token secret verified successfully");
             model
         }
         TokenOrAuth::Auth(username, password) => {
@@ -53,11 +54,13 @@ pub async fn get_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<Token> {
                 return Err(NodegetError::PermissionDenied(AUTH_FAILED_MESSAGE.to_owned()).into());
             }
 
+            debug!(target: "auth", username = %username, "password verified successfully");
             model
         }
     };
 
     let token_limit = parse_token_limit_with_compat(token_model.token_limit)?;
+    debug!(target: "auth", token_key = %token_model.token_key, limits_count = token_limit.len(), "token authenticated successfully");
 
     Ok(Token {
         version: token_model.version,
@@ -73,14 +76,17 @@ pub async fn get_token_by_key_or_username(identifier: &str) -> anyhow::Result<To
     let cache = TokenCache::global();
 
     let token_model = if let Some(model) = cache.find_by_key(identifier).await {
+        debug!(target: "auth", identifier = %identifier, "found token by key");
         model
     } else {
         cache.find_by_username(identifier).await.ok_or_else(|| {
+            warn!(target: "auth", identifier = %identifier, "token not found by key or username");
             NodegetError::NotFound(format!("Token not found by key/username: {identifier}"))
         })?
     };
 
     let token_limit = parse_token_limit_with_compat(token_model.token_limit)?;
+    debug!(target: "auth", identifier = %identifier, token_key = %token_model.token_key, "token resolved successfully");
 
     Ok(Token {
         version: token_model.version,
@@ -112,6 +118,7 @@ pub fn parse_token_limit_with_compat(token_limit_value: Value) -> anyhow::Result
     match serde_json::from_value::<Vec<Limit>>(token_limit_value.clone()) {
         Ok(v) => Ok(v),
         Err(original_err) => {
+            warn!(target: "auth", error = %original_err, "token_limit parse failed, trying with unknown permissions filtered");
             let filtered = drop_unknown_permissions(token_limit_value);
             serde_json::from_value::<Vec<Limit>>(filtered).map_err(|e| {
                 NodegetError::SerializationError(format!(
@@ -195,10 +202,12 @@ pub async fn check_token_limit(
         .await
         .map_err(|e| NodegetError::PermissionDenied(format!("{e}")))?;
     if is_super_token {
+        debug!(target: "auth", "super token authenticated, all permissions granted");
         return Ok(true);
     }
 
     let token = get_token(token_or_auth).await?;
+    debug!(target: "auth", token_key = %token.token_key, scopes_count = scopes.len(), permissions_count = permissions.len(), "checking token permissions");
 
     let now = get_local_timestamp_ms_i64()?;
     if let Some(from) = token.timestamp_from
@@ -250,5 +259,6 @@ pub async fn check_token_limit(
         }
     }
 
+    debug!(target: "auth", token_key = %token.token_key, "all permission checks passed");
     Ok(true)
 }

@@ -28,6 +28,8 @@ pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
             return Err(NodegetError::NotFound(format!("Crontab not found: {name}")).into());
         };
 
+        debug!(target: "crontab", id = model.id, name = %name, "Crontab found for deletion");
+
         let cron_type = parse_cron_type(&model.cron_type, &name)?;
         ensure_crontab_scope_permission(
             &token_or_auth,
@@ -36,6 +38,8 @@ pub async fn delete(token: String, name: String) -> RpcResult<Box<RawValue>> {
             "Permission Denied: Missing Crontab Delete permission for all target scopes",
         )
         .await?;
+
+        debug!(target: "crontab", name = %name, "Crontab delete permission check passed");
 
         let deleted = delete_crontab_by_name(name.clone())
             .await

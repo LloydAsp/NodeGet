@@ -34,6 +34,7 @@ pub async fn create(
         let route_name = normalize_route_name(route_name)?;
 
         check_js_worker_permission(&token, name.as_str(), JsWorkerPermission::Create).await?;
+        debug!(target: "js_worker", name = %name, "js_worker create permission check passed");
 
         if js_script_base64.trim().is_empty() {
             return Err(
@@ -66,6 +67,7 @@ pub async fn create(
                 NodegetError::InvalidInput(format!("js_worker already exists: {name}")).into(),
             );
         }
+        debug!(target: "js_worker", name = %name, "js_worker name available");
 
         if let Some(route_name) = route_name.as_deref() {
             let existing_route = js_worker::Entity::find()

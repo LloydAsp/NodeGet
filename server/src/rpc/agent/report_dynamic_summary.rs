@@ -19,9 +19,11 @@ pub async fn report_dynamic_summary(
     let process_logic = async {
         let agent_uuid = uuid::Uuid::from_str(&data.uuid)
             .map_err(|e| NodegetError::ParseError(format!("Invalid UUID format: {e}")))?;
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_dynamic_summary: UUID parsed");
 
         let token_or_auth = TokenOrAuth::from_full_token(&token)
             .map_err(|e| NodegetError::ParseError(format!("Failed to parse token: {e}")))?;
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_dynamic_summary: token parsed");
 
         let is_allowed = check_token_limit(
             &token_or_auth,
@@ -39,6 +41,7 @@ pub async fn report_dynamic_summary(
             )
             .into());
         }
+        debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_dynamic_summary: permission check passed");
 
         let in_data = dynamic_monitoring_summary::ActiveModel {
             id: ActiveValue::default(),

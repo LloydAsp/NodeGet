@@ -27,6 +27,8 @@ pub async fn delete(token: String, target_token: String) -> RpcResult<Box<RawVal
             .into());
         }
 
+        debug!(target: "token", target_token = %target_token, "Super token verified, proceeding with delete");
+
         if target_token.trim().is_empty() {
             return Err(
                 NodegetError::InvalidInput("target_token cannot be empty".to_string()).into(),

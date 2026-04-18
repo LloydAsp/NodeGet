@@ -68,6 +68,8 @@ pub async fn static_data_multi_last_query(
             .into());
         }
 
+        debug!(target: "monitoring", uuids_count = deduped_uuids.len(), fields_count = fields.len(), "Static multi-last query permission check passed");
+
         let db = AgentRpcImpl::get_db()?;
         let statement = build_union_last_statement(&deduped_uuids, &fields, db)?;
 

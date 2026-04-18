@@ -57,6 +57,8 @@ pub async fn query_dynamic_summary(
             .into());
         }
 
+        debug!(target: "monitoring", conditions_count = query_data.condition.len(), fields_count = query_data.fields.len(), "Dynamic summary query permission check passed");
+
         let db = AgentRpcImpl::get_db()?;
 
         let query = dynamic_monitoring_summary::Entity::find()
