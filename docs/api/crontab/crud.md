@@ -80,7 +80,7 @@ Server 任务类型 — 触发已注册的 JsWorker 脚本:
 - 第一个参数是脚本名（`js_worker.name`）
 - 第二个参数是传给脚本的 `params`（任意 JSON）
 - Cron 触发时不传 `env`，会使用脚本自身在数据库保存的 `env`
-- 触发成功后会生成 `js_result` 记录，`crontab_result.special_id` 即该 `js_result.id`
+- 触发成功后会生成 `js_result` 记录，`crontab_result.relative_id` 即该 `js_result.id`
 
 ### 权限要求
 

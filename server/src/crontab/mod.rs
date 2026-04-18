@@ -283,7 +283,7 @@ async fn run_cleanup_database_job(cron_id: i64, cron_name: String) {
         id: ActiveValue::NotSet,
         cron_id: Set(cron_id),
         cron_name: Set(cron_name.clone()),
-        special_id: Set(None),
+        relative_id: Set(None),
         run_time: Set(Some(Utc::now().timestamp_millis())),
         success: Set(Some(success)),
         message: Set(Some(message)),
@@ -316,19 +316,19 @@ async fn run_js_worker_job(cron_id: i64, cron_name: String, js_script_name: Stri
     let run_result =
         enqueue_defined_js_worker_run(js_script_name.clone(), RunType::Cron, params, None).await;
 
-    let (success, message, special_id) = match run_result {
+    let (success, message, relative_id) = match run_result {
         Ok(id) => {
             info!(
                 target: "crontab",
                 cron_id,
                 cron_name = %cron_name,
                 js_script_name = %js_script_name,
-                special_id = id,
+                relative_id = id,
                 "js_worker cron job triggered"
             );
             (
                 true,
-                format!("已触发 JsWorker 定时任务，脚本名：{js_script_name}，special_id：{id}"),
+                format!("已触发 JsWorker 定时任务，脚本名：{js_script_name}，relative_id：{id}"),
                 Some(id),
             )
         }
@@ -353,7 +353,7 @@ async fn run_js_worker_job(cron_id: i64, cron_name: String, js_script_name: Stri
         id: ActiveValue::NotSet,
         cron_id: Set(cron_id),
         cron_name: Set(cron_name.clone()),
-        special_id: Set(special_id),
+        relative_id: Set(relative_id),
         run_time: Set(Some(Utc::now().timestamp_millis())),
         success: Set(Some(success)),
         message: Set(Some(message)),

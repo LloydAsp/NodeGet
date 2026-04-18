@@ -29,7 +29,7 @@ CrontabResult 结构如下:
   "cron_id": 5, // 关联的 Crontab ID
   "cron_name": "cleanup_database", // Crontab 名称
   "run_time": 1769341269012, // 执行时间（毫秒时间戳）
-  "special_id": null, // 如果是下发 Agent Task 的 Cron，这里为 task_id；如果是触发 JsWorker 的 Cron，这里为 js_result_id
+  "relative_id": null, // 如果是下发 Agent Task 的 Cron，这里为 task_id；如果是触发 JsWorker 的 Cron，这里为 js_result_id
   "success": true, // 是否执行成功
   "message": "Cleaned 100 records" // 执行结果消息
 }

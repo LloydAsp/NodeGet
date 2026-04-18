@@ -132,7 +132,7 @@ pub async fn crontab_task(
             let (success, message, task_id) = match process_logic.await {
                 Ok(new_id) => (
                     true,
-                    format!("任务下发成功，Agent：[{uuid}]，special_id：{new_id}"),
+                    format!("任务下发成功，Agent：[{uuid}]，relative_id：{new_id}"),
                     Some(new_id),
                 ),
                 Err(e) => {
@@ -154,7 +154,7 @@ pub async fn crontab_task(
                 id: ActiveValue::NotSet,
                 cron_id: Set(cron_id),
                 cron_name: Set(cron_name.clone()),
-                special_id: Set(task_id),
+                relative_id: Set(task_id),
                 run_time: Set(Some(Utc::now().timestamp_millis())),
                 success: Set(Some(success)),
                 message: Set(Some(message)),

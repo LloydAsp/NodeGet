@@ -86,7 +86,7 @@ Server 类型 (JsWorker):
 - 每次触发会按 `run_type = cron` 调用脚本
 - `params` 来自 Crontab 配置中的 `Value`
 - 不从 Crontab 传 `env`，使用 `js_worker` 表内保存的 `env`
-- 执行记录会写入 `js_result`，并在 `crontab_result.special_id` 中记录对应 `js_result.id`
+- 执行记录会写入 `js_result`，并在 `crontab_result.relative_id` 中记录对应 `js_result.id`
 
 ## 权限系统
 

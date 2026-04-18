@@ -34,7 +34,7 @@
     "id": 1,                             // 记录 ID
     "cron_id": 5,                        // 关联的 Crontab ID
     "cron_name": "cleanup_database",     // Crontab 名称
-    "special_id": null,                  // 关联的 task_id 或 js_result_id
+    "relative_id": null,                  // 关联的 task_id 或 js_result_id
     "run_time": 1769341269012,           // 执行时间（毫秒时间戳）
     "success": true,                     // 是否执行成功
     "message": "Cleaned 100 records"     // 执行结果消息
