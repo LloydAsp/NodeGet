@@ -1,6 +1,8 @@
 use std::process::Command;
 use std::time::SystemTime;
 
+const UNKNOWN: &str = "UNKNOWN";
+
 fn run(cmd: &str, args: &[&str]) -> String {
     Command::new(cmd)
         .args(args)
@@ -8,7 +10,8 @@ fn run(cmd: &str, args: &[&str]) -> String {
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_default()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| UNKNOWN.to_string())
 }
 
 fn main() {
@@ -30,15 +33,15 @@ fn main() {
 
     // Cargo target triple
     let target_triple =
-        std::env::var("TARGET").unwrap_or_default();
+        std::env::var("TARGET").unwrap_or_else(|_| UNKNOWN.to_string());
 
     // Rustc info
     let rustc_verbose = run("rustc", &["-vV"]);
-    let mut rustc_semver = String::new();
-    let mut rustc_channel = String::new();
-    let mut rustc_commit_date = String::new();
-    let mut rustc_commit_hash = String::new();
-    let mut rustc_llvm = String::new();
+    let mut rustc_semver = UNKNOWN.to_string();
+    let mut rustc_channel = UNKNOWN.to_string();
+    let mut rustc_commit_date = UNKNOWN.to_string();
+    let mut rustc_commit_hash = UNKNOWN.to_string();
+    let mut rustc_llvm = UNKNOWN.to_string();
     for line in rustc_verbose.lines() {
         if let Some(v) = line.strip_prefix("release: ") {
             rustc_semver = v.to_string();
