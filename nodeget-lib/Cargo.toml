@@ -12,7 +12,7 @@ serde_json = { version = "1.0" }
 toml = { version = "0.9.11", default-features = false, features = ["std", "serde", "parse"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 url = { version = "2.5.8", default-features = false, features = ["std", "serde"] }
-rand = { version = "0.10.0", default-features = false, features = ["std"] }
+rand = { version = "0.9", default-features = false, features = ["std", "thread_rng"] }
 sha2 = "0.10"
 thiserror = "2.0.18"
 anyhow = "1.0.100"

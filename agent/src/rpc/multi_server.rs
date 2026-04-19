@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use crate::AGENT_CONFIG;
 use crate::rpc::wrap_json_into_rpc_with_id_1;
-use futures::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use nodeget_lib::config::agent::Server;
 use nodeget_lib::error::NodegetError;
