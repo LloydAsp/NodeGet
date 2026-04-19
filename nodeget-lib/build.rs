@@ -32,8 +32,7 @@ fn main() {
     };
 
     // Cargo target triple
-    let target_triple =
-        std::env::var("TARGET").unwrap_or_else(|_| UNKNOWN.to_string());
+    let target_triple = std::env::var("TARGET").unwrap_or_else(|_| UNKNOWN.to_string());
 
     // Rustc info
     let rustc_verbose = run("rustc", &["-vV"]);

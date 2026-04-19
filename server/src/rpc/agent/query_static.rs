@@ -100,7 +100,9 @@ pub async fn query_static(
         for cond in &static_data_query.condition {
             if let QueryCondition::Uuid(uuid) = cond {
                 let uuid_id = uuid_cache.get_id(uuid).await.ok_or_else(|| {
-                    anyhow::anyhow!(NodegetError::NotFound(format!("Unknown agent UUID: {uuid}")))
+                    anyhow::anyhow!(NodegetError::NotFound(format!(
+                        "Unknown agent UUID: {uuid}"
+                    )))
                 })?;
                 uuid_ids.push(uuid_id);
             }

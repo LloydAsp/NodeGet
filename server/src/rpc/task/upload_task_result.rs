@@ -38,13 +38,16 @@ pub async fn upload_task_result(
                 NodegetError::DatabaseError(format!("Database query error: {e}"))
             })?
             .ok_or_else(|| {
-                NodegetError::NotFound("Task validation failed: Invalid ID, UUID, or Token".to_owned())
+                NodegetError::NotFound(
+                    "Task validation failed: Invalid ID, UUID, or Token".to_owned(),
+                )
             })?;
 
         if task_model.success.is_some() {
             return Err(NodegetError::InvalidInput(
                 "Task result has already been uploaded".to_owned(),
-            ).into());
+            )
+            .into());
         }
 
         let original_task_type: TaskEventType = serde_json::from_value(task_model.task_event_type)
@@ -58,12 +61,14 @@ pub async fn upload_task_result(
             &token_or_auth,
             vec![Scope::AgentUuid(task_response.agent_uuid)],
             vec![Permission::Task(Task::Write(task_name.to_string()))],
-        ).await?;
+        )
+        .await?;
 
         if !is_allowed {
             return Err(NodegetError::PermissionDenied(format!(
                 "Permission Denied: Missing Task Write ({task_name}) permission for this Agent"
-            )).into());
+            ))
+            .into());
         }
 
         let error_message = task_response.error_message.clone().map(|v| {
@@ -109,7 +114,8 @@ pub async fn upload_task_result(
         if update_result.rows_affected == 0 {
             return Err(NodegetError::InvalidInput(
                 "Task result has already been uploaded".to_owned(),
-            ).into());
+            )
+            .into());
         }
 
         manager

@@ -161,10 +161,12 @@ pub async fn run(config: &nodeget_lib::config::server::ServerConfig) {
         error!(target: "server", address = %config.ws_listener, error = %e, "failed to parse listen address");
         panic!("Invalid listen address '{}': {e}", config.ws_listener);
     });
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap_or_else(|e| {
-        error!(target: "server", address = %addr, error = %e, "failed to bind TCP listener");
-        panic!("Failed to bind to {addr}: {e}");
-    });
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|e| {
+            error!(target: "server", address = %addr, error = %e, "failed to bind TCP listener");
+            panic!("Failed to bind to {addr}: {e}");
+        });
     info!(target: "server", address = %addr, "Server listening on TCP");
 
     let serve_future = IntoFuture::into_future(axum::serve(

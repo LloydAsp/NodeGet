@@ -1,5 +1,5 @@
-use crate::entity::{dynamic_monitoring, dynamic_monitoring_summary, static_monitoring};
 use crate::DB;
+use crate::entity::{dynamic_monitoring, dynamic_monitoring_summary, static_monitoring};
 use nodeget_lib::config::server::MonitoringBufferConfig;
 use sea_orm::EntityTrait;
 use std::sync::{Mutex, OnceLock};
@@ -63,19 +63,28 @@ pub fn init(config: Option<&MonitoringBufferConfig>) {
     }
 
     // 启动三个后台 flush task
-    tokio::spawn(flush_loop::<static_monitoring::Entity, static_monitoring::ActiveModel>(
+    tokio::spawn(flush_loop::<
+        static_monitoring::Entity,
+        static_monitoring::ActiveModel,
+    >(
         "static_monitoring",
         static_rx,
         flush_interval,
         max_batch_size,
     ));
-    tokio::spawn(flush_loop::<dynamic_monitoring::Entity, dynamic_monitoring::ActiveModel>(
+    tokio::spawn(flush_loop::<
+        dynamic_monitoring::Entity,
+        dynamic_monitoring::ActiveModel,
+    >(
         "dynamic_monitoring",
         dynamic_rx,
         flush_interval,
         max_batch_size,
     ));
-    tokio::spawn(flush_loop::<dynamic_monitoring_summary::Entity, dynamic_monitoring_summary::ActiveModel>(
+    tokio::spawn(flush_loop::<
+        dynamic_monitoring_summary::Entity,
+        dynamic_monitoring_summary::ActiveModel,
+    >(
         "dynamic_monitoring_summary",
         summary_rx,
         flush_interval,

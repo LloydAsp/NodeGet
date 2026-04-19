@@ -8,9 +8,7 @@ use crate::token::get::check_token_limit;
 use jsonrpsee::core::RpcResult;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::monitoring::query::QueryCondition;
-use nodeget_lib::permission::data_structure::{
-    DynamicMonitoringSummary, Permission,
-};
+use nodeget_lib::permission::data_structure::{DynamicMonitoringSummary, Permission};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::value::RawValue;
@@ -37,8 +35,7 @@ pub async fn delete_dynamic_summary(
 
         if !is_allowed {
             return Err(NodegetError::PermissionDenied(
-                "Permission Denied: Missing DynamicMonitoringSummary Delete permission"
-                    .to_owned(),
+                "Permission Denied: Missing DynamicMonitoringSummary Delete permission".to_owned(),
             )
             .into());
         }
@@ -55,9 +52,8 @@ pub async fn delete_dynamic_summary(
             for cond in &resolved_conditions {
                 match cond {
                     ResolvedCondition::UuidId(uuid_id) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::UuidId.eq(*uuid_id),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::UuidId.eq(*uuid_id));
                     }
                     ResolvedCondition::TimestampFromTo(start, end) => {
                         query = query.filter(
@@ -67,14 +63,12 @@ pub async fn delete_dynamic_summary(
                         );
                     }
                     ResolvedCondition::TimestampFrom(start) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::Timestamp.gte(*start),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::Timestamp.gte(*start));
                     }
                     ResolvedCondition::TimestampTo(end) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::Timestamp.lte(*end),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::Timestamp.lte(*end));
                     }
                 }
             }
@@ -113,9 +107,8 @@ pub async fn delete_dynamic_summary(
             for cond in &resolved_conditions {
                 match cond {
                     ResolvedCondition::UuidId(uuid_id) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::UuidId.eq(*uuid_id),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::UuidId.eq(*uuid_id));
                     }
                     ResolvedCondition::TimestampFromTo(start, end) => {
                         query = query.filter(
@@ -125,14 +118,12 @@ pub async fn delete_dynamic_summary(
                         );
                     }
                     ResolvedCondition::TimestampFrom(start) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::Timestamp.gte(*start),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::Timestamp.gte(*start));
                     }
                     ResolvedCondition::TimestampTo(end) => {
-                        query = query.filter(
-                            dynamic_monitoring_summary::Column::Timestamp.lte(*end),
-                        );
+                        query =
+                            query.filter(dynamic_monitoring_summary::Column::Timestamp.lte(*end));
                     }
                 }
             }

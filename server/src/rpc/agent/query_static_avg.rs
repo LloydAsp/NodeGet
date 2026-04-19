@@ -65,9 +65,15 @@ pub async fn query_static_avg(
         debug!(target: "monitoring", uuid = %static_data_avg_query.uuid, "Static avg query permission check passed");
 
         let uuid_cache = MonitoringUuidCache::global();
-        let uuid_id = uuid_cache.get_id(&static_data_avg_query.uuid).await.ok_or_else(|| {
-            NodegetError::NotFound(format!("Agent UUID {} not found in monitoring_uuid table", static_data_avg_query.uuid))
-        })?;
+        let uuid_id = uuid_cache
+            .get_id(&static_data_avg_query.uuid)
+            .await
+            .ok_or_else(|| {
+                NodegetError::NotFound(format!(
+                    "Agent UUID {} not found in monitoring_uuid table",
+                    static_data_avg_query.uuid
+                ))
+            })?;
 
         let db = AgentRpcImpl::get_db()?;
         ensure_postgres_backend(db).map_err(|e| {
@@ -166,7 +172,11 @@ async fn query_static_avg_postgres(
         })?;
 
     let json = row.map_or(Value::Array(Vec::new()), |r| r.data);
-    let result_count = if let Value::Array(ref arr) = json { arr.len() } else { 1 };
+    let result_count = if let Value::Array(ref arr) = json {
+        arr.len()
+    } else {
+        1
+    };
     let json = serde_json::to_string(&json)
         .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
 

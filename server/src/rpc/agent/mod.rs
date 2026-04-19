@@ -15,10 +15,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::Instrument;
 use uuid::Uuid;
 
+mod delete_common;
 mod delete_dynamic;
 mod delete_dynamic_summary;
 mod delete_static;
-mod delete_common;
 mod query_dynamic;
 mod query_dynamic_avg;
 mod query_dynamic_multi_last;
@@ -306,11 +306,9 @@ impl RpcServer for AgentRpcImpl {
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
         let span = tracing::info_span!(target: "monitoring", "agent::query_dynamic_summary", token_key = tk, username = un, query = ?query);
-        async {
-            rpc_exec!(query_dynamic_summary::query_dynamic_summary(token, query).await)
-        }
-        .instrument(span)
-        .await
+        async { rpc_exec!(query_dynamic_summary::query_dynamic_summary(token, query).await) }
+            .instrument(span)
+            .await
     }
 
     async fn query_dynamic_summary_avg(
@@ -337,7 +335,10 @@ impl RpcServer for AgentRpcImpl {
         let span = tracing::info_span!(target: "monitoring", "agent::dynamic_summary_multi_last_query", token_key = tk, username = un, uuids = ?uuids, fields = ?fields);
         async {
             rpc_exec!(
-                query_dynamic_summary_multi_last::dynamic_summary_multi_last_query(token, uuids, fields).await
+                query_dynamic_summary_multi_last::dynamic_summary_multi_last_query(
+                    token, uuids, fields
+                )
+                .await
             )
         }
         .instrument(span)
@@ -351,10 +352,8 @@ impl RpcServer for AgentRpcImpl {
     ) -> RpcResult<Box<RawValue>> {
         let (tk, un) = token_identity(&token);
         let span = tracing::info_span!(target: "monitoring", "agent::delete_dynamic_summary", token_key = tk, username = un, conditions = ?conditions);
-        async {
-            rpc_exec!(delete_dynamic_summary::delete_dynamic_summary(token, conditions).await)
-        }
-        .instrument(span)
-        .await
+        async { rpc_exec!(delete_dynamic_summary::delete_dynamic_summary(token, conditions).await) }
+            .instrument(span)
+            .await
     }
 }

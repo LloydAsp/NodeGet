@@ -80,7 +80,9 @@ pub async fn static_data_multi_last_query(
         let mut uuid_id_pairs: Vec<(Uuid, i16)> = Vec::with_capacity(deduped_uuids.len());
         for uuid in &deduped_uuids {
             let uuid_id = uuid_cache.get_id(uuid).await.ok_or_else(|| {
-                NodegetError::NotFound(format!("Agent UUID not found in monitoring registry: {uuid}"))
+                NodegetError::NotFound(format!(
+                    "Agent UUID not found in monitoring registry: {uuid}"
+                ))
             })?;
             uuid_id_pairs.push((*uuid, uuid_id));
         }
@@ -92,7 +94,14 @@ pub async fn static_data_multi_last_query(
             .map(|field| (field.column_name(), field.json_key()))
             .collect();
 
-        execute_statement_query(db, statement, &field_mappings, deduped_uuids.len(), &uuid_cache).await
+        execute_statement_query(
+            db,
+            statement,
+            &field_mappings,
+            deduped_uuids.len(),
+            &uuid_cache,
+        )
+        .await
     };
 
     match process_logic.await {
@@ -222,7 +231,10 @@ async fn execute_statement_query(
                     if let Some(uuid_id_val) = obj.remove("uuid_id") {
                         if let Some(uuid_id) = uuid_id_val.as_i64() {
                             if let Some(uuid) = uuid_cache.get_uuid(uuid_id as i16).await {
-                                obj.insert("uuid".to_owned(), serde_json::Value::String(uuid.to_string()));
+                                obj.insert(
+                                    "uuid".to_owned(),
+                                    serde_json::Value::String(uuid.to_string()),
+                                );
                             }
                         }
                     }

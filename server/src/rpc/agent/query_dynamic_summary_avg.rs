@@ -6,9 +6,7 @@ use crate::token::get::check_token_limit;
 use jsonrpsee::core::RpcResult;
 use nodeget_lib::error::NodegetError;
 use nodeget_lib::monitoring::query::{DynamicSummaryAvgQuery, DynamicSummaryQueryField};
-use nodeget_lib::permission::data_structure::{
-    DynamicMonitoringSummary, Permission, Scope,
-};
+use nodeget_lib::permission::data_structure::{DynamicMonitoringSummary, Permission, Scope};
 use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::error_message::anyhow_error_to_raw;
 use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
@@ -64,7 +62,10 @@ pub async fn query_dynamic_summary_avg(
 
         let uuid_cache = MonitoringUuidCache::global();
         let uuid_id = uuid_cache.get_id(&query.uuid).await.ok_or_else(|| {
-            NodegetError::NotFound(format!("Agent UUID {} not found in monitoring_uuid table", query.uuid))
+            NodegetError::NotFound(format!(
+                "Agent UUID {} not found in monitoring_uuid table",
+                query.uuid
+            ))
         })?;
 
         let db = AgentRpcImpl::get_db()?;
@@ -126,8 +127,7 @@ fn ensure_postgres_backend(db: &DatabaseConnection) -> anyhow::Result<()> {
     }
 
     Err(NodegetError::InvalidInput(
-        "agent_query_dynamic_summary_avg currently only supports PostgreSQL"
-            .to_owned(),
+        "agent_query_dynamic_summary_avg currently only supports PostgreSQL".to_owned(),
     )
     .into())
 }
@@ -163,7 +163,11 @@ async fn query_summary_avg_postgres(
         })?;
 
     let json = row.map_or(Value::Array(Vec::new()), |r| r.data);
-    let result_count = if let Value::Array(ref arr) = json { arr.len() } else { 1 };
+    let result_count = if let Value::Array(ref arr) = json {
+        arr.len()
+    } else {
+        1
+    };
     let json = serde_json::to_string(&json)
         .map_err(|e| NodegetError::SerializationError(format!("Serialization failed: {e}")))?;
 

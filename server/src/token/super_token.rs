@@ -146,7 +146,8 @@ pub async fn check_super_token(token_or_auth: &TokenOrAuth) -> anyhow::Result<bo
 
     match token_or_auth {
         TokenOrAuth::Token(key, secret) => {
-            let is_super = key == &super_record.token_key && hash_string(secret) == super_record.token_hash;
+            let is_super =
+                key == &super_record.token_key && hash_string(secret) == super_record.token_hash;
             debug!(target: "token", is_super, "Super token check completed (token auth)");
             Ok(is_super)
         }
