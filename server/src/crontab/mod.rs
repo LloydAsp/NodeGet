@@ -1,3 +1,4 @@
+pub mod cache;
 mod server_cron;
 mod task;
 
@@ -5,12 +6,12 @@ use crate::DB;
 use crate::db_connection::clean_up::cleanup_expired_data;
 use crate::entity::{crontab, crontab_result};
 use crate::rpc::js_worker::service::enqueue_defined_js_worker_run;
+use cache::CrontabCache;
 use chrono::{TimeZone, Utc};
 use cron::Schedule;
 use nodeget_lib::crontab::{AgentCronType, Cron, CronType, ServerCronType};
 use nodeget_lib::js_runtime::RunType;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, Set};
-use sea_orm::{EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, Set};
 use serde_json::Value;
 use std::str::FromStr;
 use std::time::Duration;
@@ -25,6 +26,7 @@ pub async fn delete_crontab_by_name(name: String) -> Result<bool, sea_orm::DbErr
         ))
     })?;
 
+    use sea_orm::{ColumnTrait, QueryFilter};
     let result = crontab::Entity::delete_many()
         .filter(crontab::Column::Name.eq(&name))
         .exec(db)
@@ -33,6 +35,9 @@ pub async fn delete_crontab_by_name(name: String) -> Result<bool, sea_orm::DbErr
     let deleted = result.rows_affected > 0;
     if deleted {
         info!(target: "crontab", name = %name, "crontab deleted");
+        if let Err(e) = CrontabCache::reload().await {
+            error!(target: "crontab", error = %e, "failed to reload crontab cache after delete");
+        }
     } else {
         warn!(target: "crontab", name = %name, "crontab not found for deletion");
     }
@@ -50,6 +55,7 @@ pub async fn set_crontab_enable_by_name(
         ))
     })?;
 
+    use sea_orm::{ColumnTrait, QueryFilter};
     let crontab_option = crontab::Entity::find()
         .filter(crontab::Column::Name.eq(&name))
         .one(db)
@@ -60,6 +66,9 @@ pub async fn set_crontab_enable_by_name(
         active_model.enable = Set(enable);
         let updated = active_model.update(db).await?;
         info!(target: "crontab", name = %name, enable = updated.enable, "crontab enable updated");
+        if let Err(e) = CrontabCache::reload().await {
+            error!(target: "crontab", error = %e, "failed to reload crontab cache after set_enable");
+        }
         Ok(Some(updated.enable))
     } else {
         warn!(target: "crontab", name = %name, enable, "crontab not found for set_enable");
@@ -93,17 +102,8 @@ async fn process_crontab() {
         return;
     };
 
-    let jobs = match crontab::Entity::find()
-        .filter(crontab::Column::Enable.eq(true))
-        .all(db)
-        .await
-    {
-        Ok(jobs) => jobs,
-        Err(err) => {
-            error!(target: "crontab", error = %err, "failed to query enabled crontab jobs");
-            return;
-        }
-    };
+    let cache = CrontabCache::global();
+    let jobs = cache.get_enabled().await;
 
     let now = Utc::now();
 
@@ -165,18 +165,20 @@ async fn process_crontab() {
 
         let job_parsed = Cron {
             id: job.id,
-            name: job.name,
+            name: job.name.clone(),
             enable: job.enable,
-            cron_expression: job.cron_expression,
+            cron_expression: job.cron_expression.clone(),
             cron_type,
             last_run_time: job.last_run_time,
         };
 
         // 先更新 last_run_time，防止任务执行超时导致重复触发
-        // 注意：这是可接受的，因为 crontab 任务是幂等的
+        let now_millis = now.timestamp_millis();
+        cache.update_last_run_time(job.id, now_millis).await;
+
         let active_model = crontab::ActiveModel {
             id: Set(job.id),
-            last_run_time: Set(Some(now.timestamp_millis())),
+            last_run_time: Set(Some(now_millis)),
             ..Default::default()
         };
         if let Err(e) = active_model.update(db).await {
@@ -185,9 +187,8 @@ async fn process_crontab() {
                 job_id = job.id,
                 job_name = %job_name,
                 error = %e,
-                "failed to update last_run_time"
+                "failed to update last_run_time in DB"
             );
-            // 继续执行，不要因为记录失败而跳过任务
         }
 
         let span = info_span!(
