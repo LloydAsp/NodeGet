@@ -70,7 +70,7 @@ jobs:
 
       - name: Build binary
         working-directory: ./server
-        run: cargo clean && cross build --target ${{ matrix.platform.target }} --profile minimal --jobs 32 --locked
+        run: cargo clean && cross build --target ${{ matrix.platform.target }} --profile minimal --jobs 32
         env:
           CROSS_NO_WARNINGS: 0
 
@@ -137,7 +137,7 @@ jobs:
 
       - name: Build binary
         working-directory: ./server
-        run: cargo build --target ${{ matrix.platform.target }} --profile minimal --locked
+        run: cargo build --target ${{ matrix.platform.target }} --profile minimal
 
       - name: Rename binary
         run: copy target\${{ matrix.platform.target }}\minimal\nodeget-server.exe target\${{ matrix.platform.target }}\minimal\${{ matrix.platform.binary_name }}
@@ -176,7 +176,7 @@ jobs:
 
       - name: Build binary
         working-directory: ./server
-        run: cargo build --target ${{ matrix.platform.target }} --profile minimal --locked
+        run: cargo build --target ${{ matrix.platform.target }} --profile minimal
 
       - name: Rename binary
         run: cp target/${{ matrix.platform.target }}/minimal/nodeget-server target/${{ matrix.platform.target }}/minimal/${{ matrix.platform.binary_name }}
