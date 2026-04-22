@@ -33,11 +33,11 @@ export default {
 这些函数被调用时会遵守下面的规范注入相关参数
 
 - ctx: 执行时的上下文，里面含有当前 worker的名称，运行类型，inlineCall的调用者
-- param: api、cron调用时用户提供的变量
+- param: api、cron 调用时用户提供的变量
 - env: 由用户设定的每个worker的env变量，产期储存在数据库中
-- request: 标准的js Request对象
+- request: 标准的 Js Request对象
 
-具体规定可以参考[API](/api/js_worker/)章节
+具体规定可以参考 [API](/api/js_worker/) 章节
 
 ## 环境变量
 
@@ -48,21 +48,21 @@ export default {
 }
 ```
 
-目前 dashboard 是这种情况专门设计的，减少一定的自由度来提供统一的工程规范。
+目前 Dashboard 是这种情况专门设计的，减少一定的自由度来提供统一的工程规范。
 
 ## worker 描述
 
-允许每个worker设定自己的描述属性，该属性会以markdown文本的方式渲染，开发者应该在此说明
-- onCall调用接口的参数（params）
-- http路由及参数
+允许每个 Worker 设定自己的描述属性，该属性会以markdown文本的方式渲染，开发者应该在此说明
+- onCall 调用接口的参数（params）
+- http 路由及参数
 - 定时任务的要求
 - 环境变量及含义
 
 ## 工程化
 
-NodeGet worker暂时并不提供 import 支持，如果需要（多文件）模块化机制，可以在本地项目打包
+NodeGet Worker 暂时并不提供 import 支持，如果需要（多文件）模块化机制，可以在本地项目打包
 
-推荐使用esbuild打包，建议不要开启最小化，保持打包后代码的可读性。
+推荐使用 `esbuild` 打包，建议不要开启最小化，保持打包后代码的可读性。
 
 提供一个可以参考的配置
 

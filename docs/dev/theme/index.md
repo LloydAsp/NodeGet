@@ -1,10 +1,10 @@
 # 主题开发
 
-主题文件为纯静态页面，可以部署到 cloudflare pages / github page / 腾讯 eo 等静态文件托管服务
+主题文件为纯静态页面，可以部署到 CloudFlare Pages / Github Page / 腾讯 eo 等静态文件托管服务
 
-建议将受限token直接写入到某个配置文件（如 config.json)
+建议将受限 token 直接写入到某个配置文件（如 `config.json`)
 
-可以在 dashboard token管理处生成预设的 Visitor token
+可以在 Dashboard token 管理处生成预设的 Visitor token
 
 参考配置
 
@@ -32,13 +32,13 @@
 }
 ```
 
-建议为每个静态主题的GitHub增加`部署到Cloudflare`的便捷部署按钮
+建议为每个静态主题的GitHub增加 `部署到 Cloudflare` 的便捷部署按钮
 
 主题的推荐使用方式是：
 
-fork到自己的GitHub，修改config.json然后点击部署到cf
+fork到自己的GitHub，修改 `config.json` 然后点击部署到cf
 
-或者下载GitHub，修改config.json，手动上传
+或者下载 GitHub Code Zip，修改 `config.json`，手动上传
 
 
 ## 优秀主题汇总

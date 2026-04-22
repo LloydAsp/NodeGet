@@ -8,7 +8,7 @@
 完整流程如下：
 
 1. 运行“安装主控”脚本（无特殊需求直接回车）
-2. 使用 Nginx / Cloudflare 配置 HTTPS 反向代理，或使用预览 URL
+2. 使用 Nginx / CloudFlare 配置 HTTPS 反向代理，或使用预览 URL
 3. 打开控制面板：https://dash.nodeget.com ，添加主控
 4. 进入「被控管理」，生成被控安装命令
 5. 在被控节点执行命令，等待自动注册完成
@@ -18,13 +18,13 @@
 
 ### 默认安装（推荐）
 
-如果没有自建dashboard的打算，执行：
+如果没有自建 Dashboard 的打算，执行：
 ```shell
 bash <(curl -sL https://install.nodeget.com) install-server
 ```
 ### 自建 Dashboard
 
-如果打算自建dashboard网页，那么需要设定相关的环境变量
+如果打算自建 Dashboard 网页，那么需要设定相关的环境变量
 ```shell
 dashboard_url=https://YOUR_DASHBOARD.com \
 bash <(curl -sL https://install.nodeget.com) install-server
@@ -34,13 +34,13 @@ bash <(curl -sL https://install.nodeget.com) install-server
 
 因为下面的原因，你必须使用https网关来反向代理 主控的 ws:// 协议监听地址
 - 浏览器安全策略（混合内容限制）禁止 HTTPS 页面加载不安全的 ws:// 资源
-- dashboard 页面是 https only 的，要连接到主控的接口只能使用 wss 协议
+- Dashboard 页面是 https only 的，要连接到主控的接口只能使用 wss 协议
 - 为了安全起见，也不应该让superToken（根 token ）在公网直接明文传输
 
 ### 增加https网关的办法
 
-- 方法有很多，可以利用nginx反向代理，这是官方推荐的办法
-- 也可以 利用 Cloudflare Flexible SSL + Origin Rules，利用 cdn 来提供 https 证书
+- 方法有很多，可以利用 nginx 反向代理，这是官方推荐的办法
+- 也可以 利用 CloudFlare Flexible SSL + Origin Rules，利用 cdn 来提供 https 证书
 - 考虑到很多新用户想第一时间尝鲜，而不是在复杂的配置环节花费过多时间，我们增加了预览模式
 
 ### 何为预览模式

@@ -1,6 +1,6 @@
 # js语法规范支持力度
 
-NodeGet使用了rquickjs的rust库，这是一个[QuickJS-NG](https://quickjs-ng.github.io/quickjs/)的高级封装库
+NodeGet使用了rquickjs的rust库，这是一个 [QuickJS-NG](https://quickjs-ng.github.io/quickjs/) 的高级封装库
 
 QuickJS 的目标之一是要求高度符合 ECMAScript 标准，目前的进展为：
 

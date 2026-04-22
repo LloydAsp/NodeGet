@@ -4,4 +4,4 @@
 
 原理是灵活运用了 kv 储存，在 agent namespace 里面记录了相关字段
 
-vps在到期前会提前通知用户续费，原理是利用js worker和cron任务（待实现）
+vps 在到期前会提前通知用户续费，原理是利用 Js Worker和 cron 任务（待实现）

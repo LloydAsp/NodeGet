@@ -8,10 +8,10 @@
 希望有开发者实现下面的插件
 
 ### 进程管理器
-- 灵活运用exec任务执行ps、kill命令
+- 灵活运用 exec 任务执行 ps、kill 命令
 
-### iptable管理器
-- 灵活运用exec任务执行iptable命令
+### iptable 管理器
+- 灵活运用 exec 任务执行 iptable 命令
 
-### docker管理器
-- 灵活运用request任务请求本地docker unix socket
+### Docker 管理器
+- 灵活运用 request 任务请求本地 Docker Unix Socket

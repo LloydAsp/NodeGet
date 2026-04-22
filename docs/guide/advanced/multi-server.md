@@ -13,10 +13,10 @@ NodeGet 的多主控架构体现在两个方面
 
 ## NodeGet Agent 的多主控支持
 
-NodeGet agent 端支持同时增加多个主控程序，agent 会同时向多个上游服务器汇报
+NodeGet Agent 端支持同时增加多个主控程序，agent 会同时向多个上游服务器汇报
 
-## NodeGet dashboard 的多主控支持
+## NodeGet Dashboard 的多主控支持
 
-用户不需要为每个主控节点搭建一个控制面板，dashboard 原生支持添加多个主控
+用户不需要为每个主控节点搭建一个控制面板，Dashboard 原生支持添加多个主控
 
 为了降低理解门槛，同一时刻只存在一个当前主控，多个主控间可以无缝切换
