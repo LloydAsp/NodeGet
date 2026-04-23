@@ -135,7 +135,7 @@ fn ensure_postgres_backend(db: &DatabaseConnection) -> anyhow::Result<()> {
 async fn query_summary_avg_postgres(
     db: &DatabaseConnection,
     query: &DynamicSummaryAvgQuery,
-    uuid_id: i16,
+    uuid_id: i32,
 ) -> anyhow::Result<Box<RawValue>> {
     let sql = build_postgres_summary_avg_sql(&query.fields);
     tracing::trace!(target: "monitoring", fields_count = query.fields.len(), "Dynamic summary avg SQL generated");

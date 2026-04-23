@@ -9,8 +9,8 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 struct MonitoringUuidCacheInner {
-    by_uuid: HashMap<Uuid, i16>,
-    by_id: HashMap<i16, Uuid>,
+    by_uuid: HashMap<Uuid, i32>,
+    by_id: HashMap<i32, Uuid>,
 }
 
 pub struct MonitoringUuidCache {
@@ -89,22 +89,22 @@ impl MonitoringUuidCache {
         Ok(())
     }
 
-    /// Get the i16 id for a UUID. Returns None if not in cache.
-    pub async fn get_id(&self, uuid: &Uuid) -> Option<i16> {
+    /// Get the i32 id for a UUID. Returns None if not in cache.
+    pub async fn get_id(&self, uuid: &Uuid) -> Option<i32> {
         let guard = self.inner.read().await;
         guard.by_uuid.get(uuid).copied()
     }
 
-    /// Get the UUID for an i16 id. Returns None if not in cache.
-    pub async fn get_uuid(&self, id: i16) -> Option<Uuid> {
+    /// Get the UUID for an i32 id. Returns None if not in cache.
+    pub async fn get_uuid(&self, id: i32) -> Option<Uuid> {
         let guard = self.inner.read().await;
         guard.by_id.get(&id).copied()
     }
 
-    /// Get or insert a UUID, returning its i16 id.
+    /// Get or insert a UUID, returning its i32 id.
     /// If the UUID is already cached, returns immediately.
     /// Otherwise inserts into DB, updates cache, and returns the new id.
-    pub async fn get_or_insert(&self, uuid: Uuid) -> anyhow::Result<i16> {
+    pub async fn get_or_insert(&self, uuid: Uuid) -> anyhow::Result<i32> {
         // Fast path: read lock
         {
             let guard = self.inner.read().await;

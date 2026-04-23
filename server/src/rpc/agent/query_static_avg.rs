@@ -143,7 +143,7 @@ fn ensure_postgres_backend(db: &DatabaseConnection) -> anyhow::Result<()> {
 async fn query_static_avg_postgres(
     db: &DatabaseConnection,
     query: &StaticDataAvgQuery,
-    uuid_id: i16,
+    uuid_id: i32,
 ) -> anyhow::Result<Box<RawValue>> {
     let sql = build_postgres_static_avg_sql(&query.fields);
     tracing::trace!(target: "monitoring", fields_count = query.fields.len(), "Static avg SQL generated");
