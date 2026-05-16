@@ -8,7 +8,6 @@ use nodeget_lib::permission::token_auth::TokenOrAuth;
 use nodeget_lib::utils::get_local_timestamp_ms_i64;
 use sea_orm::{ActiveValue, Set};
 use serde_json::value::RawValue;
-use std::str::FromStr;
 use tracing::debug;
 
 pub async fn report_dynamic_summary(
@@ -16,8 +15,7 @@ pub async fn report_dynamic_summary(
     data: DynamicMonitoringSummaryData,
 ) -> RpcResult<Box<RawValue>> {
     let process_logic = async {
-        let agent_uuid = uuid::Uuid::from_str(&data.uuid)
-            .map_err(|e| NodegetError::ParseError(format!("Invalid UUID format: {e}")))?;
+        let agent_uuid = data.uuid;
         debug!(target: "monitoring", agent_uuid = %agent_uuid, "report_dynamic_summary: UUID parsed");
 
         let token_or_auth = TokenOrAuth::from_full_token(&token)
